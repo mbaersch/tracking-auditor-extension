@@ -28,17 +28,51 @@ test('UET pageLoad with enhanced-conversion user data', () => {
   assert.equal(r.consent.adStorage, 'granted');   // asc=G
 });
 
-test('UET custom conversion: action name, value and revenue', () => {
+test('UET custom conversion: category – action name, value and revenue', () => {
   const r = parseUetRequest(CUSTOM, null);
   assert.ok(r);
   assert.equal(r.evt, 'custom');
-  assert.equal(r.eventName, 'conversions');        // ea
+  assert.equal(r.eventName, 'sales – conversions');   // ec – ea
   assert.equal(r.ec, 'sales');
   assert.equal(r.el, 'leadform');
   assert.equal(r.ev, '12');
   assert.deepEqual(r.revenue, { value: '22', currency: 'USD' });
   assert.equal(r.flags.custom, true);
   assert.equal(r.flags.revenue, true);
+});
+
+test('UET consent signal (evt=consent) is distinct, not a custom event', () => {
+  const update = parseUetRequest('https://bat.bing.com/actionp/0?ti=111111111111&tm=gtm002&Ver=2&mid=a370fb0a&bo=1&evt=consent&src=update&cdb=AQAS&asc=G', null);
+  assert.ok(update);
+  assert.equal(update.evt, 'consent');
+  assert.equal(update.src, 'update');
+  assert.equal(update.eventName, 'consent update');
+  assert.equal(update.flags.consentEvent, true);
+  assert.equal(update.flags.custom, false);          // not misreported as a tracking event
+  assert.equal(update.consent.adStorage, 'granted');
+
+  const def = parseUetRequest('https://bat.bing.com/actionp/0?ti=1&evt=consent&src=default&asc=D', null);
+  assert.equal(def.eventName, 'consent default');
+  assert.equal(def.consent.adStorage, 'denied');
+});
+
+test('UET CST/Flex endpoint (commerce.bing.com/cst) is detected', () => {
+  const r = parseUetRequest('https://commerce.bing.com/cst/0?ti=111111111111&evt=custom&ec=cat&ea=act', null);
+  assert.ok(r);
+  assert.equal(r.transport, 'standard');
+  assert.equal(r.eventName, 'cat – act');
+});
+
+test('UET hit without evt is a beacon; ecomm aliases + currency fallback', () => {
+  const beacon = parseUetRequest('https://bat.bing.com/action/0?ti=1', null);
+  assert.equal(beacon.eventName, 'beacon');
+  assert.equal(beacon.flags.beacon, true);
+  assert.equal(beacon.flags.custom, false);
+
+  const alias = parseUetRequest('https://bat.bing.com/action/0?ti=1&evt=custom&ecomm_prodid=99&ecomm_pagetype=purchase&ecomm_totalvalue=5&currency=EUR', null);
+  assert.equal(alias.ecommerce.prodid, '99');        // read from ecomm_prodid alias
+  assert.equal(alias.ecommerce.pagetype, 'purchase');
+  assert.deepEqual(alias.revenue, { value: '5', currency: 'EUR' });  // currency fallback (no gc)
 });
 
 test('UET e-commerce event: ecommerce fields and revenue from gv', () => {
