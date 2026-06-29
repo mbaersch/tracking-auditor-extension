@@ -4,6 +4,8 @@
 import { parseGa4Request } from './lib/ga4.js';
 import { parseMetaRequest } from './lib/meta.js';
 import { parseUetRequest } from './lib/uet.js';
+import { parseTiktokRequest } from './lib/tiktok.js';
+import { parsePinterestRequest } from './lib/pinterest.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -14,16 +16,18 @@ const blocksEl  = document.getElementById('blocks');
 
 // Provider parsers, tried in order. Each returns a normalized record or null.
 const PARSERS = [
-  { id: 'ga4',  parse: parseGa4Request },
-  { id: 'meta', parse: parseMetaRequest },
-  { id: 'uet',  parse: parseUetRequest },
+  { id: 'ga4',    parse: parseGa4Request },
+  { id: 'meta',   parse: parseMetaRequest },
+  { id: 'uet',    parse: parseUetRequest },
+  { id: 'tiktok', parse: parseTiktokRequest },
+  { id: 'pinterest', parse: parsePinterestRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, text: '' }, // display filter (the "out" side)
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -45,21 +49,28 @@ function formatTime(d) {
 
 // Provider-agnostic accessors.
 function eventName(r) {
-  if (r.provider === 'meta') return r.ev;
-  if (r.provider === 'uet')  return r.eventName;
+  if (r.provider === 'meta')   return r.ev;
+  if (r.provider === 'uet')    return r.eventName;
+  if (r.provider === 'tiktok') return r.event;
+  if (r.provider === 'pinterest') return r.event;
   return r.en;
 }
 function accountId(r) {
-  if (r.provider === 'meta') return r.id;
-  if (r.provider === 'uet')  return r.ti;
+  if (r.provider === 'meta')   return r.id;
+  if (r.provider === 'uet')    return r.ti;
+  if (r.provider === 'tiktok') return r.code;
+  if (r.provider === 'pinterest') return r.tid;
   return r.tid;
 }
 function accountTitle(r) {
-  if (r.provider === 'meta') return 'Pixel ID (id)';
-  if (r.provider === 'uet')  return 'UET Tag ID (ti)';
+  if (r.provider === 'meta')   return 'Pixel ID (id)';
+  if (r.provider === 'uet')    return 'UET Tag ID (ti)';
+  if (r.provider === 'tiktok') return 'Pixel Code';
+  if (r.provider === 'pinterest') return 'Tag ID (tid)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
+  if (r.provider === 'tiktok' || r.provider === 'pinterest') return r.pageUrl || null; // page url lives in the JSON payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -90,6 +101,16 @@ function providerPills(r) {
     }
     return pills.join('');
   }
+  if (r.provider === 'tiktok') {
+    const pills = ['<span class="pill pill-tiktok" title="TikTok Pixel — analytics.tiktok.com/api/v2/pixel">TikTok</span>'];
+    if (r.transport === 'base64') {
+      pills.push('<span class="pill pill-stape" title="base64 transport — JSON payload base64-encoded in ?analytics_message=">base64</span>');
+    }
+    return pills.join('');
+  }
+  if (r.provider === 'pinterest') {
+    return '<span class="pill pill-pinterest" title="Pinterest Tag — ct.pinterest.com/v3">Pinterest</span>';
+  }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
   const sub = GA4_TRANSPORT_SUB[r.transport];
   if (sub) pills.push(`<span class="pill ${sub.cls}" title="${escapeHtml(sub.tip)}">${escapeHtml(sub.label)}</span>`);
@@ -117,6 +138,31 @@ function flagPills(r) {
     }
     if (f.iframe) out.push('<span class="pill pill-ep" title="ifm=1 — fired inside an iframe">iframe</span>');
     if (f.spa)    out.push('<span class="pill pill-ep" title="spa=1 — single-page-app navigation">SPA</span>');
+    return out.join('');
+  }
+  if (r.provider === 'tiktok') {
+    const f = r.flags || {};
+    if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a TikTok standard event)">custom event</span>');
+    if (f.dedup)          out.push('<span class="pill pill-event" title="event_id present — event ID for Events API deduplication">dedup</span>');
+    if (f.ecommerce)      out.push('<span class="pill pill-event" title="E-commerce event with content/value data (properties.contents[])">ecommerce</span>');
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="properties.value / currency">revenue: ${amount}</span>`);
+    }
+    if (f.invalidSignal) out.push('<span class="pill pill-consent-denied" title="TikTok flagged a sent identifier as invalid (signal_diagnostic_labels)">signal: invalid</span>');
+    return out.join('');
+  }
+  if (r.provider === 'pinterest') {
+    const f = r.flags || {};
+    if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a Pinterest standard event)">custom event</span>');
+    if (f.dedup)          out.push('<span class="pill pill-event" title="ed.event_id present — event ID for Conversions API deduplication">dedup</span>');
+    if (f.ecommerce)      out.push('<span class="pill pill-event" title="E-commerce event with value / line_items">ecommerce</span>');
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="ed.value / currency">revenue: ${amount}</span>`);
+    }
+    if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom field(s) in ed">cd ×${f.cdCount}</span>`);
+    if (f.isEu)          out.push('<span class="pill pill-consent-info" title="ad.is_eu — request originated in an EU/privacy region">EU</span>');
     return out.join('');
   }
   const f = r.flags;
@@ -171,6 +217,17 @@ function summaryPills(r) {
   } else if (r.provider === 'uet') {
     if (r.flags && r.flags.enhancedConv) {
       pills.push('<span class="pill pill-em" title="Enhanced conversions present (hashed identifiers in pid)">enhanced conv.</span>');
+    }
+  } else if (r.provider === 'tiktok') {
+    if (r.flags && r.flags.externalId) {
+      pills.push('<span class="pill pill-ud" title="external_id present in context.user">external_id</span>');
+    }
+    if (r.flags && r.flags.advancedMatching) {
+      pills.push('<span class="pill pill-em" title="Advanced matching present (hashed identifiers in context.user)">adv. matching</span>');
+    }
+  } else if (r.provider === 'pinterest') {
+    if (r.flags && r.flags.advancedMatching) {
+      pills.push('<span class="pill pill-em" title="Enhanced match present (hashed identifiers in pd)">enhanced match</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -256,6 +313,103 @@ function detailHtml(r) {
       const rows = Object.values(r.userData).map((f) =>
         `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw)'}</td></tr>`);
       extras += section('user data (enhanced conversions)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+  } else if (r.provider === 'tiktok') {
+    meta = [
+      ['event', r.event], ['pixel code', r.code],
+      ['transport', r.transport], ['method', r.method],
+      ['event id (dedup)', r.eventId], ['message id', r.messageId],
+      ['library', r.library],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / not hashed)'}</td></tr>`);
+      extras += section('user data (context.user)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+
+    if (r.ecommerce) {
+      const e = r.ecommerce;
+      const rows = [];
+      if (e.value != null)       rows.push(['value', `${e.value}${e.currency ? ' ' + e.currency : ''}`]);
+      if (e.contentType)         rows.push(['content_type', e.contentType]);
+      if (e.query)               rows.push(['query', e.query]);
+      if (e.contentIds)          rows.push(['content_ids', e.contentIds.join(', ')]);
+      if (rows.length) extras += section('e-commerce (properties)', kvTable(rows));
+      if (Array.isArray(e.contents) && e.contents.length) {
+        const items = e.contents.map((it) => {
+          const name = it.name || it.id || '?';
+          const price = it.price != null ? ` @ ${it.price}${e.currency ? ' ' + e.currency : ''}` : '';
+          const qty = it.quantity != null ? ` × ${it.quantity}` : '';
+          return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(`${it.id != null ? '#' + it.id : ''}${qty}${price}`)}</td></tr>`;
+        }).join('');
+        extras += section(`contents (${e.contents.length})`, `<table class="det-table">${items}</table>`);
+      }
+    }
+
+    // TikTok's own data-quality verdict — surfaced verbatim (reading parameters,
+    // not validating). Invalid signals carry the reason and whether TikTok offered
+    // a corrected hash.
+    if (r.diagnostics) {
+      const sigRows = (r.diagnostics.signals || []).map((s) => {
+        const detail = [
+          s.abnormal ? s.abnormal.join(', ') : '',
+          s.suggested ? 'suggested value provided' : '',
+        ].filter(Boolean).join(' · ');
+        return `<tr><td>${escapeHtml(s.field)}</td><td>${escapeHtml(s.label)}${detail ? ' — ' + escapeHtml(detail) : ''}</td></tr>`;
+      }).join('');
+      if (sigRows) extras += section('signal diagnostics (TikTok verdict)', `<table class="det-table">${sigRows}</table>`);
+      if (r.diagnostics.identityParams) {
+        const ipRows = Object.entries(r.diagnostics.identityParams).map(([k, v]) =>
+          `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(Array.isArray(v) ? v.join(', ') : String(v))}</td></tr>`).join('');
+        extras += section('identity params (_inspection)', `<table class="det-table">${ipRows}</table>`);
+      }
+    }
+  } else if (r.provider === 'pinterest') {
+    meta = [
+      ['event', r.event], ['event (raw)', r.eventRaw && r.eventRaw !== r.event ? r.eventRaw : null],
+      ['tag id (tid)', r.tid], ['transport', r.transport], ['method', r.method],
+      ['event id (dedup)', r.eventId],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / not hashed)'}</td></tr>`);
+      extras += section('enhanced match (pd)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+    if (r.pinUnauth || (r.aemEligible && r.aemEligible.length)) {
+      const rows = [];
+      if (r.pinUnauth)                       rows.push(['pin_unauth', r.pinUnauth]);
+      if (r.aemEligible && r.aemEligible.length) rows.push(['aem_eligible_list', r.aemEligible.join(', ')]);
+      extras += section('pd extras', kvTable(rows));
+    }
+
+    if (r.ecommerce) {
+      const e = r.ecommerce;
+      const rows = [];
+      if (e.value != null)     rows.push(['value', `${e.value}${e.currency ? ' ' + e.currency : ''}`]);
+      if (e.orderId)           rows.push(['order_id', e.orderId]);
+      if (e.orderQuantity)     rows.push(['order_quantity', e.orderQuantity]);
+      if (e.promoCode)         rows.push(['promo_code', e.promoCode]);
+      if (e.searchQuery)       rows.push(['search_query', e.searchQuery]);
+      if (e.contentIds)        rows.push(['content_ids', e.contentIds.join(', ')]);
+      if (rows.length) extras += section('e-commerce (ed)', kvTable(rows));
+      if (Array.isArray(e.lineItems) && e.lineItems.length) {
+        const items = e.lineItems.map((it) => {
+          const name = it.name || it.id || '?';
+          const price = it.price != null ? ` @ ${it.price}${e.currency ? ' ' + e.currency : ''}` : '';
+          const qty = it.quantity != null ? ` × ${it.quantity}` : '';
+          const cat = it.category ? ` (${it.category})` : '';
+          return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(`${it.id != null ? '#' + it.id : ''}${qty}${price}${cat}`)}</td></tr>`;
+        }).join('');
+        extras += section(`line items (${e.lineItems.length})`, `<table class="det-table">${items}</table>`);
+      }
+    }
+
+    if (r.customData && Object.keys(r.customData).length) {
+      extras += section('custom data (ed)', `<table class="det-table">${paramRows(r.customData)}</table>`);
     }
   } else {
     meta = [

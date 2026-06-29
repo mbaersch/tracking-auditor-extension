@@ -88,9 +88,11 @@
     /* Event cards — tinted per provider so a mixed GA4/Meta stream scans easily
        (warm for GA4, cool blue for Meta; masked GA4 transports a touch warmer). */
     .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-    .ev.p-ga4  { background: var(--surface-warm); }
-    .ev.p-meta { background: var(--surface-cool); }
-    .ev.p-uet  { background: var(--surface-teal); }
+    .ev.p-ga4    { background: var(--surface-warm); }
+    .ev.p-meta   { background: var(--surface-cool); }
+    .ev.p-uet    { background: var(--surface-teal); }
+    .ev.p-tiktok { background: var(--surface-alt); }
+    .ev.p-pinterest { background: var(--surface-warm); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -111,6 +113,8 @@
     .pill-ga4      { background: #e37400; color: #fff; }
     .pill-meta     { background: #1877f2; color: #fff; }
     .pill-bing     { background: #0a8a8a; color: #fff; }
+    .pill-tiktok   { background: #010101; color: #25f4ee; }
+    .pill-pinterest { background: #e60023; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -146,6 +150,8 @@
       <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
       <label><input type="checkbox" data-rec="meta" checked> Meta</label>
       <label><input type="checkbox" data-rec="uet" checked> Bing</label>
+      <label><input type="checkbox" data-rec="tiktok" checked> TikTok</label>
+      <label><input type="checkbox" data-rec="pinterest" checked> Pinterest</label>
       <span class="ctl-hint">which services are captured (applies to new hits)</span>
     </div>
     <div class="ctl-row filterbar">
@@ -153,6 +159,8 @@
       <label><input type="checkbox" data-flt="ga4" checked> GA4</label>
       <label><input type="checkbox" data-flt="meta" checked> Meta</label>
       <label><input type="checkbox" data-flt="uet" checked> Bing</label>
+      <label><input type="checkbox" data-flt="tiktok" checked> TikTok</label>
+      <label><input type="checkbox" data-flt="pinterest" checked> Pinterest</label>
       <input type="search" id="filterText" placeholder="filter by event, id, parameter…" autocomplete="off">
     </div>
   </header>
