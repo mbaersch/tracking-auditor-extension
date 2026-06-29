@@ -1,7 +1,7 @@
 # Tracking Auditor Extension
 
-A lightweight Chrome **DevTools** extension that records GA4 **and Meta** requests
-of the inspected tab — including transports that common debuggers miss:
+A lightweight Chrome **DevTools** extension that records GA4, **Meta** and **Bing**
+requests of the inspected tab — including transports that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -14,6 +14,12 @@ Meta (Facebook) Pixel:
 - First-party proxied `/tr` on the site's own domain
 - Reads `ev`/`id`, custom data (`cd[…]`), advanced matching (`ud`/`udff`/`cud`/`ncud`/`aud`
   — masks kept, each field counted once), CAPI dedup (`eid`) and Limited Data Use (`dpo`)
+
+Bing / Microsoft UET:
+- Standard tag (`bat.bing.com/action` / `actionp`) and first-party proxied `/action`
+- Reads `ti`/`evt`, custom event `ec`/`ea`/`el`/`ev`, `gv`/`gc` revenue, `ecomm_*` fields,
+  enhanced-conversion identifiers from the `pid` querystring, and the `asc` consent
+  signal (granted/denied/**unset** — a missing signal is shown, not hidden)
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Record** and reload the
 page: every hit is listed in blocks per navigation, in order, with event name,
@@ -29,15 +35,16 @@ Roadmap:
 - **Step 1 (done):** GA4 across all transports.
 - **Step 2 (done):** Meta/Facebook requests. Motivation: Meta's own extension is
   now login-gated — this fills that gap.
-- **Step 3 (next):** Bing / Microsoft UET (the official UET Helper is poor).
+- **Step 3 (done):** Bing / Microsoft UET (the official UET Helper is poor).
 
 ## Architecture
 
 Captures via `chrome.devtools.network.onRequestFinished` (HAR), so it needs **no**
 host permissions — the manifest is essentially just `devtools_page`. All logic
-runs in the panel; detection/parsing lives in `lib/ga4.js` and `lib/meta.js`
-(pure functions, unit-tested), with shared HTTP-param extraction in
-`lib/params.js`.
+runs in the panel; detection/parsing lives in `lib/ga4.js`, `lib/meta.js` and
+`lib/uet.js` (pure functions, unit-tested), with shared HTTP-param extraction in
+`lib/params.js`. Adding a provider = one `lib/<x>.js` + an entry in the panel's
+`PARSERS` array + its render branches and a record/show checkbox.
 
 See [docs/2026-06-29-design-step1.md](docs/2026-06-29-design-step1.md) for the full design.
 
