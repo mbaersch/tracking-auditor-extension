@@ -64,9 +64,11 @@ function identifierSummary(ids, em) {
 function flagPills(flags) {
   if (!flags) return '';
   const out = [];
-  if (flags.sessionStart) out.push('<span class="pill pill-event" title="_ss=1 — session start">session start</span>');
-  if (flags.firstVisit)   out.push('<span class="pill pill-event" title="_fv=1 — first visit">first visit</span>');
-  if (flags.epCount)      out.push(`<span class="pill pill-ep" title="${flags.epCount} custom event parameter(s): ep.* / epn.*">ep ×${flags.epCount}</span>`);
+  if (flags.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
+  if (flags.externalEvent) out.push('<span class="pill pill-ee" title="_ee=1 — external event (created via GA4 configuration)">external</span>');
+  if (flags.sessionStart)  out.push('<span class="pill pill-event" title="_ss=1 — session start">session start</span>');
+  if (flags.firstVisit)    out.push('<span class="pill pill-event" title="_fv=1 — first visit">first visit</span>');
+  if (flags.epCount)       out.push(`<span class="pill pill-ep" title="${flags.epCount} custom event parameter(s): ep.* / epn.*">ep ×${flags.epCount}</span>`);
   return out.join('');
 }
 

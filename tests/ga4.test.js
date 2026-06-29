@@ -99,10 +99,18 @@ test('flags: session start, first visit, ep count (unique across query+body)', (
   assert.equal(r.flags.epCount, 2);
 });
 
+test('flags: conversion (_c) and external event (_ee)', () => {
+  const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=purchase&_c=1&_ee=1', null);
+  assert.equal(r.flags.conversion, true);
+  assert.equal(r.flags.externalEvent, true);
+});
+
 test('flags default to false / 0 when absent', () => {
   const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=page_view', null);
   assert.equal(r.flags.sessionStart, false);
   assert.equal(r.flags.firstVisit, false);
+  assert.equal(r.flags.conversion, false);
+  assert.equal(r.flags.externalEvent, false);
   assert.equal(r.flags.epCount, 0);
 });
 
