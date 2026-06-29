@@ -271,6 +271,17 @@ function setBlockUrl(block, url) {
   if (block._headEl) block._headEl.innerHTML = blockHeadHtml(block);
 }
 
+// Resolve the inspected page's real URL straight from the page context — works
+// for any provider (Meta, Bing, …) and doesn't depend on a tracking parameter
+// like dl ever being present.
+function resolveCurrentPageUrl(block) {
+  try {
+    chrome.devtools.inspectedWindow.eval('location.href', (result, err) => {
+      if (!err && typeof result === 'string') setBlockUrl(block, result);
+    });
+  } catch (e) { /* eval unavailable — leave the placeholder */ }
+}
+
 function appendEventDom(block, r) {
   const dl = docLocation(r);
   const idChip = accountId(r);
@@ -317,6 +328,7 @@ function startBlock(navUrl) {
   const block = { navUrl, navTime: Date.now(), events: [] };
   state.blocks.push(block);
   appendBlockDom(block);
+  if (!navUrl) resolveCurrentPageUrl(block);   // opened pre-onNavigated: get the real URL
   return block;
 }
 
@@ -344,7 +356,6 @@ function onRequest(harEntry) {
   r._ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   r._search = buildSearchText(r);
   const block = currentBlock();
-  if (!block.navUrl) setBlockUrl(block, docLocation(r));   // first block opened pre-onNavigated
   block.events.push(r);
   appendEventDom(block, r);
   renderStatus();
