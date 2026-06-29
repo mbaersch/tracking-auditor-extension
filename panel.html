@@ -70,11 +70,14 @@
     /* Event cards */
     .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; border-left: 3px solid #7c3aed; padding: 8px 10px; }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm); }
+    .ev { cursor: pointer; }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
     .ev-method { font-weight: 700; color: var(--secondary); font-size: 9px; }
+    .ev-caret { margin-left: auto; color: var(--text-faint); font-size: 11px; line-height: 1; user-select: none; }
+    .ev:hover .ev-caret { color: var(--primary); }
     .ev-host { flex: 1 1 100%; word-break: break-all; line-height: 1.3; }
-    .ev-name { font-weight: 700; font-size: 13px; color: var(--primary); text-transform: none; margin: 4px 0 2px; }
+    .ev-name { font-weight: 700; font-size: 13px; color: var(--text); text-transform: none; margin: 4px 0 2px; }
     .ev-pills { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
     .ev-summary { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
 

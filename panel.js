@@ -141,6 +141,7 @@ function appendEventDom(block, r) {
     <div class="ev-head">
       <span class="ev-time">${escapeHtml(formatTime(new Date(r._ts)))}</span>
       <span class="ev-method">${escapeHtml(r.method)}</span>
+      <span class="ev-caret" title="Show all parameters">▸</span>
       <span class="ev-host">${escapeHtml(shortPath(r.effectiveUrl))}</span>
     </div>
     <div class="ev-name">${escapeHtml(r.en || '(no event name)')}</div>
@@ -150,7 +151,11 @@ function appendEventDom(block, r) {
   card.addEventListener('click', (e) => {
     if (e.target.closest('.ev-detail')) return;   // let users select/copy in the table
     const det = card.querySelector('.ev-detail');
-    if (det) det.hidden = !det.hidden;
+    const caret = card.querySelector('.ev-caret');
+    if (det) {
+      det.hidden = !det.hidden;
+      if (caret) { caret.textContent = det.hidden ? '▸' : '▾'; caret.title = det.hidden ? 'Show all parameters' : 'Hide parameters'; }
+    }
   });
   block._eventsEl.appendChild(card);
 }
@@ -158,9 +163,9 @@ function appendEventDom(block, r) {
 function renderStatus() {
   recCount.textContent = `${totalEvents()} events / ${state.blocks.length} blocks`;
   recDot.classList.toggle('live', state.recording);
-  recordBtn.textContent = state.recording ? 'Stop' : 'Record';
+  recordBtn.textContent = state.recording ? 'Stop' : 'Start & Reload';
   recordBtn.classList.toggle('recording', state.recording);
-  emptyEl.hidden = totalEvents() > 0;
+  emptyEl.hidden = state.blocks.length > 0;
 }
 
 // --- capture ---------------------------------------------------------------
@@ -203,13 +208,11 @@ chrome.devtools.network.onNavigated.addListener(onNavigated);
 
 function setRecording(on) {
   state.recording = on;
-  if (on && state.blocks.length === 0) {
-    // Seed the first block with the current page URL for a meaningful header.
-    chrome.devtools.inspectedWindow.eval('location.href', (href) => {
-      if (state.recording && state.blocks.length === 0) startBlock(typeof href === 'string' ? href : null);
-    });
-  }
   renderStatus();
+  // Starting reloads the inspected page: the post-reload onNavigated opens the
+  // first block and we capture from the very first hit — no empty initial block
+  // and no manual reload needed.
+  if (on) chrome.devtools.inspectedWindow.reload();
 }
 
 recordBtn.addEventListener('click', () => setRecording(!state.recording));
