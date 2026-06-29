@@ -25,15 +25,20 @@ Key params:
 
 ## Detection (`parseUetRequest`)
 
-1. **standard** — host is `bat.bing.com` (or `*.bing.com`) and path is `/action`
-   or `/actionp` (with a `ti`)
-2. **first-party** — any host, path `/action…`, numeric `ti` + `evt` (proxied on
-   the site's own domain)
+1. **standard** — host is `bat.bing.com` / `commerce.bing.com` (or `*.bing.com`)
+   and path is `/action`, `/actionp` or `/cst` (with a `ti`). `commerce.bing.com/cst`
+   is the CST/Flex-tag endpoint (learned from the official helper).
+2. **first-party** — any host, path `/action…` / `/cst`, numeric `ti` + `evt`
+   (proxied on the site's own domain)
 
 ## Friendly event name
 
-`pageLoad` stays as-is; a custom event takes its **action** (`ea`), falling back
-to category (`ec`) — e.g. `conversions`, `purchase`.
+- `pageLoad` → `pageLoad`
+- `evt=consent` → **`consent default` / `consent update`** (from `src`) — these are
+  consent signals (Microsoft Consent Mode), fire repeatedly and carry no ec/ea, so
+  they must NOT be shown as custom events.
+- custom → **`category – action`** (`ec – ea`; label stays in the detail)
+- no `evt` → `beacon`
 
 ## UI
 
@@ -47,13 +52,28 @@ pill and tint.
   ec/ea/el/ev, revenue, e-commerce fields, consent (asc/cdb), and the hashed
   enhanced-conversion identifiers.
 
+## vs. the official UET Tag Helper (0.6.15, source reviewed 2026-06-29)
+
+What we took from it: the second endpoint `commerce.bing.com/cst`; the evt model
+(missing = beacon, pageLoad, else custom); `asc` = G/D; the short→new-syntax param
+aliases (`ecomm_prodid`/`ecomm_pagetype`, `currency`); the `ifm` (iframe) / `spa`
+markers.
+
+Where we are already ahead: the helper does **not** decode `cdb`, has **no**
+concept of `pid` enhanced-conversion user data, and doesn't surface `bo`/`vid`/
+`vids`/`uach`/`tpp`. Its large validation/warning engine (revenue/currency/hotel/
+travel rules, multi-tag checks) is deliberately **out of scope** — we read and
+display, we don't validate. Travel/hotel/flight/`items[]` params still appear in
+the raw Query-parameters table, just without friendly labels.
+
 ## Open question
 
-`asc` = G/D is confirmed by the user; the exact meaning of `cdb` is surfaced raw
-but not yet decoded. A denied-consent example would confirm the `asc=D` path end
-to end.
+`asc` = G/D/absent(unset) is confirmed; `cdb` (e.g. `AQAS`) is surfaced raw — the
+official helper doesn't decode it either, so its meaning stays open. A denied-
+consent example would confirm the `asc=D` path end to end.
 
 ## Verification
 
-7 unit tests in `tests/uet.test.js` against three real captured hits (pageLoad
-with enhanced conversions, a custom conversion with revenue, an e-commerce event).
+10 unit tests in `tests/uet.test.js` against real captured hits (pageLoad with
+enhanced conversions, custom conversion with revenue, e-commerce, a consent
+signal) plus CST-endpoint, beacon and ecomm-alias cases.

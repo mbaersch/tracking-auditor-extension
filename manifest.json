@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tracking Auditor",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Records GA4, Meta Pixel and Bing UET requests of the inspected tab in DevTools, including custom-loader, base64-encoded and first-party transports.",
   "minimum_chrome_version": "114",
   "icons": {
