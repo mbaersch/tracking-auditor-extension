@@ -15,6 +15,7 @@
       --surface-warm: #fff7ed;
       --surface-warm-hover: #fef0e0;
       --surface-cool: #eff6ff;
+      --surface-teal: #ecfdf6;
       --surface-hover-primary: #fef9f4;
       --text: #1e293b;
       --text-muted: #64748b;
@@ -33,6 +34,7 @@
         --surface-warm: #2a2218;
         --surface-warm-hover: #332918;
         --surface-cool: #1a2230;
+        --surface-teal: #16282a;
         --surface-hover-primary: #2a2018;
         --text: #e2e8f0;
         --text-muted: #94a3b8;
@@ -88,6 +90,7 @@
     .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
     .ev.p-ga4  { background: var(--surface-warm); }
     .ev.p-meta { background: var(--surface-cool); }
+    .ev.p-uet  { background: var(--surface-teal); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -106,6 +109,7 @@
     .pill-stape    { background: #cffafe; color: #155e75; }
     .pill-custom   { background: #e0e7ff; color: #3730a3; }
     .pill-meta     { background: #1877f2; color: #fff; }
+    .pill-bing     { background: #0a8a8a; color: #fff; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
     .pill-event    { background: #ede9fe; color: #5b21b6; }
@@ -139,16 +143,18 @@
       <span class="ctl-label">Record</span>
       <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
       <label><input type="checkbox" data-rec="meta" checked> Meta</label>
+      <label><input type="checkbox" data-rec="uet" checked> Bing</label>
       <span class="ctl-hint">which services are captured (applies to new hits)</span>
     </div>
     <div class="ctl-row filterbar">
       <span class="ctl-label">Show</span>
       <label><input type="checkbox" data-flt="ga4" checked> GA4</label>
       <label><input type="checkbox" data-flt="meta" checked> Meta</label>
+      <label><input type="checkbox" data-flt="uet" checked> Bing</label>
       <input type="search" id="filterText" placeholder="filter by event, id, parameter…" autocomplete="off">
     </div>
   </header>
-  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4 and Meta requests will appear here, grouped per page load.</div>
+  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Meta and Bing requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
   <script type="module" src="panel.js"></script>

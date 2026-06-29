@@ -3,6 +3,7 @@
 // offered to every provider parser (GA4, Meta); the first that claims it wins.
 import { parseGa4Request } from './lib/ga4.js';
 import { parseMetaRequest } from './lib/meta.js';
+import { parseUetRequest } from './lib/uet.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -15,13 +16,14 @@ const blocksEl  = document.getElementById('blocks');
 const PARSERS = [
   { id: 'ga4',  parse: parseGa4Request },
   { id: 'meta', parse: parseMetaRequest },
+  { id: 'uet',  parse: parseUetRequest },
 ];
 
 const state = {
   recording: false,
-  blocks: [],                                  // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, text: '' }, // display filter (the "out" side)
+  blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
+  record: { ga4: true, meta: true, uet: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, text: '' }, // display filter (the "out" side)
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -42,10 +44,24 @@ function formatTime(d) {
 }
 
 // Provider-agnostic accessors.
-function eventName(r) { return r.provider === 'meta' ? r.ev : r.en; }
-function accountId(r) { return r.provider === 'meta' ? r.id : r.tid; }
+function eventName(r) {
+  if (r.provider === 'meta') return r.ev;
+  if (r.provider === 'uet')  return r.eventName;
+  return r.en;
+}
+function accountId(r) {
+  if (r.provider === 'meta') return r.id;
+  if (r.provider === 'uet')  return r.ti;
+  return r.tid;
+}
+function accountTitle(r) {
+  if (r.provider === 'meta') return 'Pixel ID (id)';
+  if (r.provider === 'uet')  return 'UET Tag ID (ti)';
+  return 'Measurement ID (tid)';
+}
 function docLocation(r) {
-  return (r.queryParams && r.queryParams.dl) || (r.bodyParams && r.bodyParams.dl) || null;
+  const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
+  return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
 
 // --- pill / summary rendering ---------------------------------------------
@@ -65,6 +81,13 @@ function providerPills(r) {
     }
     return pills.join('');
   }
+  if (r.provider === 'uet') {
+    const pills = ['<span class="pill pill-bing" title="Microsoft Bing UET — bat.bing.com/action">Bing</span>'];
+    if (r.transport === 'first-party') {
+      pills.push('<span class="pill pill-custom" title="First-party proxied /action on the site&#39;s own domain">first-party</span>');
+    }
+    return pills.join('');
+  }
   const t = GA4_TRANSPORT_PILL[r.transport];
   return t ? `<span class="pill ${t.cls}" title="${escapeHtml(t.tip)}">${escapeHtml(t.label)}</span>` : '';
 }
@@ -76,6 +99,16 @@ function flagPills(r) {
     if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a Meta standard event)">custom event</span>');
     if (f.dedup)          out.push('<span class="pill pill-event" title="eid present — event ID for CAPI deduplication">dedup</span>');
     if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom-data field(s): cd[...]">cd ×${f.cdCount}</span>`);
+    return out.join('');
+  }
+  if (r.provider === 'uet') {
+    const f = r.flags || {};
+    if (f.custom)    out.push('<span class="pill pill-ee" title="Custom event (evt=custom) — typically a conversion goal">custom event</span>');
+    if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (prodid / pagetype / ecomm_*)">ecommerce</span>');
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="Goal value (gv) / e-commerce total">revenue: ${amount}</span>`);
+    }
     return out.join('');
   }
   const f = r.flags;
@@ -90,10 +123,19 @@ function flagPills(r) {
 
 function consentPills(r) {
   const out = [];
+  const stateClsConsent = (s) => s === 'granted' ? 'pill-consent-granted' : s === 'denied' ? 'pill-consent-denied' : 'pill-consent-unset';
   if (r.provider === 'meta') {
     if (r.consent && r.consent.ldu) {
       out.push('<span class="pill pill-consent-unset" title="Limited Data Use active (data_processing_options / dpo)">LDU</span>');
     }
+    return out.join('');
+  }
+  if (r.provider === 'uet') {
+    // Always shown — the absence of asc (unset) is itself meaningful.
+    const s = r.consent ? r.consent.adStorage : 'unset';
+    const label = s === 'unset' ? 'consent: unset' : `ad: ${s}`;
+    const tip = 'Microsoft Consent Mode (asc): G=granted, D=denied, absent=unset';
+    out.push(`<span class="pill ${stateClsConsent(s)}" title="${escapeHtml(tip)}">${escapeHtml(label)}</span>`);
     return out.join('');
   }
   const consent = r.consent;
@@ -117,6 +159,10 @@ function summaryPills(r) {
   if (r.provider === 'meta') {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Advanced matching present (hashed ud[...] tokens)">adv. matching</span>');
+    }
+  } else if (r.provider === 'uet') {
+    if (r.flags && r.flags.enhancedConv) {
+      pills.push('<span class="pill pill-em" title="Enhanced conversions present (hashed identifiers in pid)">enhanced conv.</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -173,6 +219,35 @@ function detailHtml(r) {
     extras += metaUserDataSection(r.userData);
     if (r.customData && Object.keys(r.customData).length) {
       extras += section('custom data (cd)', `<table class="det-table">${paramRows(r.customData)}</table>`);
+    }
+  } else if (r.provider === 'uet') {
+    meta = [
+      ['event type (evt)', r.evt], ['UET tag id (ti)', r.ti],
+      ['transport', r.transport], ['method', r.method],
+      ['tag manager (tm)', r.tagManager], ['message id (mid)', r.mid],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    const evRows = [];
+    if (r.ec != null) evRows.push(['category (ec)', r.ec]);
+    if (r.ea != null) evRows.push(['action (ea)', r.ea]);
+    if (r.el != null) evRows.push(['label (el)', r.el]);
+    if (r.ev != null) evRows.push(['value (ev)', r.ev]);
+    if (r.revenue)    evRows.push(['revenue (gv/gc)', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]);
+    if (evRows.length) extras += section('Event', kvTable(evRows));
+
+    if (r.ecommerce) extras += section('e-commerce', `<table class="det-table">${paramRows(r.ecommerce)}</table>`);
+
+    // Consent is always shown — the absence of asc (unset) is meaningful.
+    const cRows = [['ad_storage', (r.consent && r.consent.adStorage) || 'unset']];
+    if (r.consent && r.consent.asc != null) cRows.push(['asc', r.consent.asc]);
+    if (r.consent && r.consent.cdb != null) cRows.push(['cdb', r.consent.cdb]);
+    extras += section('Consent', kvTable(cRows));
+
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw)'}</td></tr>`);
+      extras += section('user data (enhanced conversions)', `<table class="det-table">${rows.join('')}</table>`);
     }
   } else {
     meta = [
@@ -285,7 +360,7 @@ function resolveCurrentPageUrl(block) {
 function appendEventDom(block, r) {
   const dl = docLocation(r);
   const idChip = accountId(r);
-  const idTitle = r.provider === 'meta' ? 'Pixel ID (id)' : 'Measurement ID (tid)';
+  const idTitle = accountTitle(r);
   const card = document.createElement('div');
   card.className = `ev p-${r.provider} t-${r.transport}`;
   card.innerHTML = `
