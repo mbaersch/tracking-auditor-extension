@@ -6,6 +6,7 @@ import { parseMetaRequest } from './lib/meta.js';
 import { parseUetRequest } from './lib/uet.js';
 import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
+import { parseGoogleAdsRequest } from './lib/googleads.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -21,13 +22,16 @@ const PARSERS = [
   { id: 'uet',    parse: parseUetRequest },
   { id: 'tiktok', parse: parseTiktokRequest },
   { id: 'pinterest', parse: parsePinterestRequest },
+  // GA4 stays ahead of Google Ads: GA4 only claims /g/collect, Ads owns
+  // /ccm/collect (tid=AW-) and the conversion/remarketing/form-data endpoints.
+  { id: 'googleads', parse: parseGoogleAdsRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, text: '' }, // display filter (the "out" side)
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -53,6 +57,8 @@ function eventName(r) {
   if (r.provider === 'uet')    return r.eventName;
   if (r.provider === 'tiktok') return r.event;
   if (r.provider === 'pinterest') return r.event;
+  if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
+
   return r.en;
 }
 function accountId(r) {
@@ -60,6 +66,7 @@ function accountId(r) {
   if (r.provider === 'uet')    return r.ti;
   if (r.provider === 'tiktok') return r.code;
   if (r.provider === 'pinterest') return r.tid;
+  if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
   return r.tid;
 }
 function accountTitle(r) {
@@ -67,10 +74,11 @@ function accountTitle(r) {
   if (r.provider === 'uet')    return 'UET Tag ID (ti)';
   if (r.provider === 'tiktok') return 'Pixel Code';
   if (r.provider === 'pinterest') return 'Tag ID (tid)';
+  if (r.provider === 'googleads') return 'Conversion ID (AW)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest') return r.pageUrl || null; // page url lives in the JSON payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -110,6 +118,16 @@ function providerPills(r) {
   }
   if (r.provider === 'pinterest') {
     return '<span class="pill pill-pinterest" title="Pinterest Tag — ct.pinterest.com/v3">Pinterest</span>';
+  }
+  if (r.provider === 'googleads') {
+    const SIG = { conversion: 'conversion', remarketing: 'remarketing', measurement: 'measurement', upd: 'UPD' };
+    const pills = ['<span class="pill pill-googleads" title="Google Ads — googleadservices.com / doubleclick / google.com ccm">Google Ads</span>'];
+    const sig = SIG[r.signalType];
+    if (sig) pills.push(`<span class="pill pill-event" title="signal type — all transport mirrors of one hit are folded into this card">${escapeHtml(sig)}</span>`);
+    if (r.transport === 'first-party') {
+      pills.push('<span class="pill pill-custom" title="First-party / sGTM-proxied Ads endpoint on the site&#39;s own domain (untested)">first-party</span>');
+    }
+    return pills.join('');
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
   const sub = GA4_TRANSPORT_SUB[r.transport];
@@ -163,6 +181,21 @@ function flagPills(r) {
     }
     if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom field(s) in ed">cd ×${f.cdCount}</span>`);
     if (f.isEu)          out.push('<span class="pill pill-consent-info" title="ad.is_eu — request originated in an EU/privacy region">EU</span>');
+    return out.join('');
+  }
+  if (r.provider === 'googleads') {
+    const f = r.flags || {};
+    if (f.conversion && r.label) out.push(`<span class="pill pill-ee" title="conversion label — AW-${escapeHtml(String(r.convId))}/${escapeHtml(r.label)}">label: ${escapeHtml(r.label)}</span>`);
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="value / currency_code">revenue: ${amount}</span>`);
+    }
+    if (f.enhancedConversions) out.push('<span class="pill pill-em" title="Enhanced conversions active (capi / em / ec_mode)">EC</span>');
+    if (r.productData && r.productData.id) out.push(`<span class="pill pill-ep" title="dynamic remarketing product (data: google_business_vertical / id)">item: ${escapeHtml(r.productData.id)}</span>`);
+    if (f.isEu) out.push('<span class="pill pill-consent-info" title="dma=1 — EU/EEA consent context">EU</span>');
+    if (r._transports && r._transports.length > 1) {
+      out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
+    }
     return out.join('');
   }
   const f = r.flags;
@@ -228,6 +261,10 @@ function summaryPills(r) {
   } else if (r.provider === 'pinterest') {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Enhanced match present (hashed identifiers in pd)">enhanced match</span>');
+    }
+  } else if (r.provider === 'googleads') {
+    if (r.flags && r.flags.advancedMatching) {
+      pills.push('<span class="pill pill-em" title="Enhanced conversions user data present (hashed em token)">enhanced match</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -411,6 +448,51 @@ function detailHtml(r) {
     if (r.customData && Object.keys(r.customData).length) {
       extras += section('custom data (ed)', `<table class="det-table">${paramRows(r.customData)}</table>`);
     }
+  } else if (r.provider === 'googleads') {
+    meta = [
+      ['signal', r.signalType],
+      ['event (en)', r.event],
+      ['conversion id', r.accountId],
+      ['label', r.label],
+      ['conversion type (bttype)', r.bttype],
+      ['order id (oid)', r.oid],
+      ['transport', r.transport], ['method', r.method],
+      ['enhanced conversions', r.flags && r.flags.enhancedConversions ? 'active (capi / em / ec_mode)' : null],
+      ['ec session id (ecsid)', r.ecsid],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+    }
+    if (r._transports && r._transports.length) {
+      extras += section(`transports (${r._transports.length})`, kvTable([['endpoints', r._transports.join(' · ')]]));
+    }
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
+      extras += section('enhanced conversions (em)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+    if (r.emd) extras += section('match diagnostics (emd)', kvTable([['emd', r.emd]]));
+    if (Array.isArray(r.items) && r.items.length) {
+      const rows = r.items.map((it) =>
+        `<tr><td>${escapeHtml(it.sku || '?')}</td><td>${escapeHtml(`${it.price || ''}${it.quantity ? ' × ' + it.quantity : ''}`)}</td></tr>`).join('');
+      extras += section(`line items (${r.items.length})`, `<table class="det-table">${rows}</table>`);
+    }
+    if (r.productData) extras += section('remarketing data (data)', `<table class="det-table">${paramRows(r.productData)}</table>`);
+    if (r.contextData) extras += section('conversion context (data)', `<table class="det-table">${paramRows(r.contextData)}</table>`);
+
+    if (r.consent) {
+      const rows = [];
+      if (r.consent.gcs) rows.push(['gcs', r.consent.gcs]);
+      if (r.consent.gcd) rows.push(['gcd', r.consent.gcd]);
+      if (Array.isArray(r.consent.gcdDecoded)) {
+        for (const p of r.consent.gcdDecoded) rows.push([p.purpose, p.text]);
+      }
+      if (r.consent.dma != null) rows.push(['dma', r.consent.dma]);
+      if (r.consent.npa != null) rows.push(['npa', r.consent.npa]);
+      extras += section('Consent', kvTable(rows));
+    }
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],
@@ -447,6 +529,10 @@ function detailHtml(r) {
 
 function buildSearchText(r) {
   const bits = [r.provider, eventName(r), accountId(r), r.host, docLocation(r)];
+  if (r.provider === 'googleads') {
+    // Mirror the manual "filter the network tab by AW-xxxxx / bare xxxxx / label" workflow.
+    bits.push(r.convId, r.label, r.signalType);
+  }
   for (const o of [r.queryParams, r.bodyParams]) {
     if (o) for (const [k, v] of Object.entries(o)) { bits.push(k); bits.push(v); }
   }
@@ -519,13 +605,11 @@ function resolveCurrentPageUrl(block) {
   } catch (e) { /* eval unavailable — leave the placeholder */ }
 }
 
-function appendEventDom(block, r) {
+function cardInnerHtml(r) {
   const dl = docLocation(r);
   const idChip = accountId(r);
   const idTitle = accountTitle(r);
-  const card = document.createElement('div');
-  card.className = `ev p-${r.provider} t-${r.transport}`;
-  card.innerHTML = `
+  return `
     <div class="ev-head">
       <span class="ev-time">${escapeHtml(formatTime(new Date(r._ts)))}</span>
       <span class="ev-method">${escapeHtml(r.method)}</span>
@@ -537,6 +621,12 @@ function appendEventDom(block, r) {
     <div class="ev-pills">${providerPills(r)}${flagPills(r)}${consentPills(r)}</div>
     ${summaryPills(r) ? `<div class="ev-summary">${summaryPills(r)}</div>` : ''}
     ${detailHtml(r)}`;
+}
+
+function appendEventDom(block, r) {
+  const card = document.createElement('div');
+  card.className = `ev p-${r.provider} t-${r.transport}`;
+  card.innerHTML = cardInnerHtml(r);
   card.addEventListener('click', (e) => {
     if (e.target.closest('.ev-detail')) return;   // let users select/copy in the table
     const det = card.querySelector('.ev-detail');
@@ -548,6 +638,16 @@ function appendEventDom(block, r) {
   });
   block._eventsEl.appendChild(card);
   r._el = card;
+  applyCardVisibility(r);
+}
+
+// Re-render a card in place after a collapse merge (transport list grew, or a
+// richer transport mirror replaced the displayed payload). The element and its
+// click listener are kept; only the inner markup is rebuilt.
+function rerenderCard(r) {
+  if (!r._el) return;
+  r._el.className = `ev p-${r.provider} t-${r.transport}`;
+  r._el.innerHTML = cardInnerHtml(r);
   applyCardVisibility(r);
 }
 
@@ -593,9 +693,36 @@ function onRequest(harEntry) {
   r._ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   r._search = buildSearchText(r);
   const block = currentBlock();
+  // Generic transport-collapse: records carrying a _collapseKey (currently only
+  // Google Ads) fold every transport mirror of one logical hit into a single
+  // card. Other providers have no key and render straight through.
+  if (r._collapseKey) {
+    const map = block._collapse || (block._collapse = new Map());
+    const existing = map.get(r._collapseKey);
+    if (existing) { mergeTransport(existing, r); renderStatus(); return; }
+    map.set(r._collapseKey, r);
+    r._transports = r._transportLabel ? [r._transportLabel] : [];
+  }
   block.events.push(r);
   appendEventDom(block, r);
   renderStatus();
+}
+
+// Fold an incoming mirror into an already-displayed record: grow its transport
+// list and, if the mirror is a richer endpoint, swap in its payload while keeping
+// the card's identity (DOM element, first-seen timestamp, collapse key, search).
+function mergeTransport(existing, incoming) {
+  if (!existing._transports) existing._transports = existing._transportLabel ? [existing._transportLabel] : [];
+  if (incoming._transportLabel && !existing._transports.includes(incoming._transportLabel)) {
+    existing._transports.push(incoming._transportLabel);
+  }
+  if ((incoming._transportRank || 0) > (existing._transportRank || 0)) {
+    const keep = { _el: existing._el, _ts: existing._ts, _transports: existing._transports, _collapseKey: existing._collapseKey };
+    const mergedSearch = `${existing._search || ''} ${incoming._search || ''}`;
+    Object.assign(existing, incoming, keep);
+    existing._search = mergedSearch;
+  }
+  rerenderCard(existing);
 }
 
 function onNavigated(url) {

@@ -17,6 +17,11 @@
       --surface-cool: #eff6ff;
       --surface-teal: #ecfdf6;
       --surface-hover-primary: #fef9f4;
+      /* Per-provider card tints — each a faint nod to the brand colour, kept
+         distinct from one another so a mixed stream scans at a glance. */
+      --card-pinterest: #fef2f2;   /* red    */
+      --card-tiktok:    #fdf4ff;   /* fuchsia */
+      --card-googleads: #eef1ff;   /* indigo (away from Meta's sky blue) */
       --text: #1e293b;
       --text-muted: #64748b;
       --text-faint: #94a3b8;
@@ -36,6 +41,9 @@
         --surface-cool: #1a2230;
         --surface-teal: #16282a;
         --surface-hover-primary: #2a2018;
+        --card-pinterest: #2a1719;   /* red    */
+        --card-tiktok:    #271a2b;   /* fuchsia */
+        --card-googleads: #1b1e36;   /* indigo */
         --text: #e2e8f0;
         --text-muted: #94a3b8;
         --text-faint: #64748b;
@@ -85,14 +93,16 @@
     .blk-head .blk-time { color: var(--text-faint); margin-right: 8px; }
     .blk-events { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 
-    /* Event cards — tinted per provider so a mixed GA4/Meta stream scans easily
-       (warm for GA4, cool blue for Meta; masked GA4 transports a touch warmer). */
+    /* Event cards — tinted per provider so a mixed stream scans easily: GA4 amber,
+       Meta blue, Bing teal, TikTok fuchsia, Pinterest red, Google Ads indigo;
+       masked GA4 transports run a touch warmer. */
     .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
     .ev.p-ga4    { background: var(--surface-warm); }
     .ev.p-meta   { background: var(--surface-cool); }
     .ev.p-uet    { background: var(--surface-teal); }
-    .ev.p-tiktok { background: var(--surface-alt); }
-    .ev.p-pinterest { background: var(--surface-warm); }
+    .ev.p-tiktok { background: var(--card-tiktok); }
+    .ev.p-pinterest { background: var(--card-pinterest); }
+    .ev.p-googleads { background: var(--card-googleads); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -115,6 +125,7 @@
     .pill-bing     { background: #0a8a8a; color: #fff; }
     .pill-tiktok   { background: #010101; color: #25f4ee; }
     .pill-pinterest { background: #e60023; color: #fff; }
+    .pill-googleads { background: #1a73e8; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -152,6 +163,7 @@
       <label><input type="checkbox" data-rec="uet" checked> Bing</label>
       <label><input type="checkbox" data-rec="tiktok" checked> TikTok</label>
       <label><input type="checkbox" data-rec="pinterest" checked> Pinterest</label>
+      <label><input type="checkbox" data-rec="googleads" checked> Google Ads</label>
       <span class="ctl-hint">which services are captured (applies to new hits)</span>
     </div>
     <div class="ctl-row filterbar">
@@ -161,7 +173,8 @@
       <label><input type="checkbox" data-flt="uet" checked> Bing</label>
       <label><input type="checkbox" data-flt="tiktok" checked> TikTok</label>
       <label><input type="checkbox" data-flt="pinterest" checked> Pinterest</label>
-      <input type="search" id="filterText" placeholder="filter by event, id, parameter…" autocomplete="off">
+      <label><input type="checkbox" data-flt="googleads" checked> Google Ads</label>
+      <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>
   </header>
   <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Meta and Bing requests will appear here, grouped per page load.</div>
