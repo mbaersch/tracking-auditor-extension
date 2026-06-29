@@ -66,13 +66,15 @@ function docLocation(r) {
 
 // --- pill / summary rendering ---------------------------------------------
 
-const GA4_TRANSPORT_PILL = {
-  'standard':    { cls: 'pill-standard', label: 'GA4',         tip: 'Standard GA4 endpoint' },
-  'first-party': { cls: 'pill-standard', label: 'first-party', tip: 'First-party sGTM / Tag Gateway on a standard collect path' },
-  'stape-b64':   { cls: 'pill-stape',    label: 'Stape b64',   tip: 'Stape Custom Loader — GA4 path was base64-encoded inside the request URL' },
-  'custom-path': { cls: 'pill-custom',   label: 'Custom path', tip: 'Custom delivery path without a standard /collect segment' },
+// GA4 transport sub-pills shown next to the GA4 provider pill (standard needs none).
+const GA4_TRANSPORT_SUB = {
+  'first-party': { cls: 'pill-custom', label: 'first-party', tip: 'First-party sGTM / Tag Gateway on a standard collect path' },
+  'stape-b64':   { cls: 'pill-stape',  label: 'Stape b64',   tip: 'Stape Custom Loader — GA4 path was base64-encoded inside the request URL' },
+  'custom-path': { cls: 'pill-custom', label: 'Custom path',  tip: 'Custom delivery path without a standard /collect segment' },
 };
 
+// Every card leads with a solid provider pill (GA4 / Meta / Bing) so the stream
+// reads consistently; transport variants follow as secondary pills.
 function providerPills(r) {
   if (r.provider === 'meta') {
     const pills = ['<span class="pill pill-meta" title="Meta (Facebook) Pixel — facebook.com/tr">Meta</span>'];
@@ -88,8 +90,10 @@ function providerPills(r) {
     }
     return pills.join('');
   }
-  const t = GA4_TRANSPORT_PILL[r.transport];
-  return t ? `<span class="pill ${t.cls}" title="${escapeHtml(t.tip)}">${escapeHtml(t.label)}</span>` : '';
+  const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
+  const sub = GA4_TRANSPORT_SUB[r.transport];
+  if (sub) pills.push(`<span class="pill ${sub.cls}" title="${escapeHtml(sub.tip)}">${escapeHtml(sub.label)}</span>`);
+  return pills.join('');
 }
 
 function flagPills(r) {
@@ -103,12 +107,15 @@ function flagPills(r) {
   }
   if (r.provider === 'uet') {
     const f = r.flags || {};
+    if (f.consentEvent) out.push('<span class="pill pill-consent-info" title="evt=consent — a consent signal (Microsoft Consent Mode), not a tracking event">consent signal</span>');
     if (f.custom)    out.push('<span class="pill pill-ee" title="Custom event (evt=custom) — typically a conversion goal">custom event</span>');
     if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (prodid / pagetype / ecomm_*)">ecommerce</span>');
     if (r.revenue) {
       const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
       out.push(`<span class="pill pill-conversion" title="Goal value (gv) / e-commerce total">revenue: ${amount}</span>`);
     }
+    if (f.iframe) out.push('<span class="pill pill-ep" title="ifm=1 — fired inside an iframe">iframe</span>');
+    if (f.spa)    out.push('<span class="pill pill-ep" title="spa=1 — single-page-app navigation">SPA</span>');
     return out.join('');
   }
   const f = r.flags;
@@ -222,7 +229,7 @@ function detailHtml(r) {
     }
   } else if (r.provider === 'uet') {
     meta = [
-      ['event type (evt)', r.evt], ['UET tag id (ti)', r.ti],
+      ['event type (evt)', r.evt], ['consent source (src)', r.src], ['UET tag id (ti)', r.ti],
       ['transport', r.transport], ['method', r.method],
       ['tag manager (tm)', r.tagManager], ['message id (mid)', r.mid],
       ['request url', r.effectiveUrl],
