@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    /* Palette ported 1:1 from the EC-Validator. Dark mode follows
+       prefers-color-scheme, which inside a DevTools panel tracks the DevTools
+       theme — so no theme toggle / storage is needed. */
+    :root {
+      --primary: #C44E00;
+      --secondary: #005141;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-alt: #f1f5f9;
+      --surface-warm: #fff7ed;
+      --surface-warm-hover: #fef0e0;
+      --surface-hover-primary: #fef9f4;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+      --text-fainter: #cbd5e1;
+      --text-strong: #475569;
+      --border: #e2e8f0;
+      --code-bg: #f1f5f9;
+      --danger-text: #991b1b;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1115;
+        --surface: #1c1f26;
+        --surface-alt: #262a33;
+        --surface-warm: #2a2218;
+        --surface-warm-hover: #332918;
+        --surface-hover-primary: #2a2018;
+        --text: #e2e8f0;
+        --text-muted: #94a3b8;
+        --text-faint: #64748b;
+        --text-fainter: #475569;
+        --text-strong: #cbd5e1;
+        --border: #2f3540;
+        --code-bg: #262a33;
+        --danger-text: #f87171;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 12px; }
+
+    /* Toolbar */
+    .toolbar { position: sticky; top: 0; z-index: 50; display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .toolbar button { font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .toolbar button:hover { border-color: var(--primary); color: var(--primary); }
+    .toolbar button.recording { background: #dc2626; color: #fff; border-color: #dc2626; }
+    .toolbar button.recording:hover { filter: brightness(1.05); color: #fff; }
+    .rec-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: auto; }
+    .rec-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-fainter); }
+    .rec-dot.live { background: #dc2626; animation: rec-pulse 1.5s infinite; }
+    @keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 70% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 12px; font-style: italic; }
+
+    /* Navigation blocks */
+    #blocks { padding: 8px 12px 24px; }
+    .blk { margin-bottom: 16px; }
+    .blk-head { font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px; color: var(--text-strong); padding: 6px 8px; background: var(--surface-alt); border-radius: 6px; border-left: 3px solid var(--secondary); word-break: break-all; }
+    .blk-head .blk-time { color: var(--text-faint); margin-right: 8px; }
+    .blk-events { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+    /* Event cards */
+    .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; border-left: 3px solid #7c3aed; padding: 8px 10px; }
+    .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm); }
+    .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
+    .ev-time { color: var(--text); }
+    .ev-method { font-weight: 700; color: var(--secondary); font-size: 9px; }
+    .ev-host { flex: 1 1 100%; word-break: break-all; line-height: 1.3; }
+    .ev-name { font-weight: 700; font-size: 13px; color: var(--primary); text-transform: none; margin: 4px 0 2px; }
+    .ev-pills { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+    .ev-summary { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+
+    /* Pills */
+    .pill { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 6px; border-radius: 10px; white-space: nowrap; cursor: help; }
+    .pill-standard { background: #d1fae5; color: #065f46; }
+    .pill-stape    { background: #cffafe; color: #155e75; }
+    .pill-custom   { background: #e0e7ff; color: #3730a3; }
+    .pill-em       { background: #dbeafe; color: #1e40af; }
+    .pill-ud       { background: #e2e8f0; color: #475569; }
+    .pill-consent-granted { background: #d1fae5; color: #065f46; }
+    .pill-consent-denied  { background: #fee2e2; color: #991b1b; }
+    .pill-consent-unset   { background: #ffedd5; color: #9a3412; }
+
+    /* Inline detail */
+    .ev-detail { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .ev-detail[hidden] { display: none; }
+    .det-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .det-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .det-table td:first-child { white-space: nowrap; color: var(--text-strong); font-weight: 600; width: 1px; padding-right: 12px; }
+    .det-table td:nth-child(2) { word-break: break-all; font-family: 'Fira Code', 'Consolas', monospace; }
+    .det-section { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); font-weight: 700; margin: 8px 0 2px; }
+    code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="recordBtn">Record</button>
+    <button id="clearBtn">Clear</button>
+    <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 blocks</span></span>
+  </div>
+  <div id="empty" class="empty">Hit <b>Record</b> and (re)load the page — GA4 requests will appear here, grouped per navigation.</div>
+  <div id="blocks"></div>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>
