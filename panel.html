@@ -70,6 +70,9 @@
     /* Event cards */
     .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm); }
+    /* Provider accent on the left edge — aids scanning a mixed GA4/Meta stream. */
+    .ev.p-ga4  { border-left: 3px solid var(--secondary); }
+    .ev.p-meta { border-left: 3px solid #1877f2; }
     .ev { cursor: pointer; }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -87,6 +90,7 @@
     .pill-standard { background: #d1fae5; color: #065f46; }
     .pill-stape    { background: #cffafe; color: #155e75; }
     .pill-custom   { background: #e0e7ff; color: #3730a3; }
+    .pill-meta     { background: #1877f2; color: #fff; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
     .pill-event    { background: #ede9fe; color: #5b21b6; }
@@ -112,9 +116,9 @@
   <div class="toolbar">
     <button id="recordBtn">Record</button>
     <button id="clearBtn">Clear</button>
-    <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 blocks</span></span>
+    <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 pages</span></span>
   </div>
-  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4 requests will appear here, grouped per page load.</div>
+  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4 and Meta requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
   <script type="module" src="panel.js"></script>
