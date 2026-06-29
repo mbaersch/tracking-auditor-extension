@@ -1,7 +1,8 @@
 # Tracking Auditor Extension
 
-A lightweight Chrome **DevTools** extension that records GA4, **Meta** and **Bing**
-requests of the inspected tab — including transports that common debuggers miss:
+A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
+**TikTok** and **Pinterest** requests of the inspected tab — including transports
+that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -21,9 +22,26 @@ Bing / Microsoft UET:
   enhanced-conversion identifiers from the `pid` querystring, and the `asc` consent
   signal (granted/denied/**unset** — a missing signal is shown, not hidden)
 
+TikTok Pixel:
+- Standard pixel (`analytics.tiktok.com/api/v2/pixel` POST JSON, `/act` batch) and the
+  base64 transport (payload base64-encoded in `?analytics_message=`)
+- Reads `event`/`context.pixel.code`, advanced matching (`context.user` — email/phone/
+  external_id, hashed flag), e-commerce (`properties.value`/`currency`/`contents[]`),
+  Events API dedup (`event_id`), and TikTok's own data-quality verdict
+  (`signal_diagnostic_labels` + `_inspection.identity_params` — surfaced verbatim, e.g.
+  "phone invalid · invalid_country")
+
+Pinterest Tag:
+- Standard tag (`ct.pinterest.com/v3/` GET beacon, POST for large payloads). The
+  `/user` endpoint (subset only) is ignored.
+- Reads `tid`/`event` (with alias→canonical mapping), enhanced match (`pd` — em/ph/…
+  hashes + `pin_unauth`, `aem_eligible_list`), e-commerce (`ed.value`/`currency`/
+  `order_id`/`line_items[]`), custom `ed` fields, Conversions API dedup (`ed.event_id`)
+  and the `ad.is_eu` region flag
+
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Record** and reload the
 page: every hit is listed in blocks per navigation, in order, with event name,
-parameters, a user-data summary and the consent state decoded. A collapsible
+parameters, a user-data summary and (where present) the consent state decoded. A collapsible
 **Record** settings row switches services on/off (capture), and an independent
 **Show** filter row (service checkboxes + fulltext) narrows the displayed log.
 
@@ -36,15 +54,19 @@ Roadmap:
 - **Step 2 (done):** Meta/Facebook requests. Motivation: Meta's own extension is
   now login-gated — this fills that gap.
 - **Step 3 (done):** Bing / Microsoft UET (the official UET Helper is poor).
+- **Step 4 (done):** TikTok Pixel (`analytics.tiktok.com/api/v2/pixel`), incl. the
+  base64 `?analytics_message=` transport and TikTok's own signal diagnostics.
+- **Step 5 (done):** Pinterest Tag (`ct.pinterest.com/v3`), enhanced match + ed/pd/ad.
 
 ## Architecture
 
 Captures via `chrome.devtools.network.onRequestFinished` (HAR), so it needs **no**
 host permissions — the manifest is essentially just `devtools_page`. All logic
-runs in the panel; detection/parsing lives in `lib/ga4.js`, `lib/meta.js` and
-`lib/uet.js` (pure functions, unit-tested), with shared HTTP-param extraction in
-`lib/params.js`. Adding a provider = one `lib/<x>.js` + an entry in the panel's
-`PARSERS` array + its render branches and a record/show checkbox.
+runs in the panel; detection/parsing lives in `lib/ga4.js`, `lib/meta.js`,
+`lib/uet.js`, `lib/tiktok.js` and `lib/pinterest.js` (pure functions, unit-tested),
+with shared HTTP-param extraction in `lib/params.js`. Adding a provider = one
+`lib/<x>.js` + an entry in the panel's `PARSERS` array + its render branches and a
+record/show checkbox.
 
 See [docs/2026-06-29-design-step1.md](docs/2026-06-29-design-step1.md) for the full design.
 
@@ -52,6 +74,6 @@ See [docs/2026-06-29-design-step1.md](docs/2026-06-29-design-step1.md) for the f
 
 ```
 # Load unpacked: chrome://extensions → Developer mode → Load unpacked → this folder
-npm test     # unit tests for lib/ga4.js
+npm test     # unit tests for all lib/*.js provider parsers
 npm run build  # → tracking-auditor-extension-v<version>.zip
 ```

@@ -4,7 +4,22 @@ Compiled 2026-06-29 from a source review of the official helper extensions
 (TikTok Pixel Helper 3.0.4, Pinterest Tag Helper 0.1.19). This is the map for
 building `lib/tiktok.js` / `lib/pinterest.js` later — but, as with Meta/UET, we
 should still build against **real captured requests** to verify, since helper
-code is a guide, not ground truth. No example requests captured yet.
+code is a guide, not ground truth.
+
+> **Status: BUILT (v0.4.0).** Both modules now exist (`lib/tiktok.js`,
+> `lib/pinterest.js`), unit-tested against real requests captured on
+> atomkraftwerke24.de. Corrections vs. the helper-derived guesses below:
+> - **TikTok** real path is `analytics.tiktok.com/api/v2/pixel` (POST JSON) — not
+>   only `/act`. Identifiers ride in **`context.user`** (`email`, `phone_number`,
+>   `external_id`, SHA-256 hex), e-commerce in `properties` (`value`, `currency`,
+>   `contents[]`). The payload also ships TikTok's own quality verdict in
+>   `signal_diagnostic_labels` + `_inspection.identity_params`, which we surface
+>   verbatim.
+> - **Pinterest** confirmed: `ct.pinterest.com/v3/`, `ed`/`pd`/`ad` JSON query
+>   params. `pd` carries the hashed `em` (+ `pin_unauth`, `aem_eligible_list`),
+>   `ed` the value/order/`line_items[]` + arbitrary custom fields, `ad.loc` the
+>   page url and `ad.is_eu` the region flag. The `/user` endpoint (subset only)
+>   is ignored.
 
 ## TikTok
 
