@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.zip
+test-results/
+playwright-report/
+tmp-*/
+.DS_Store
+*.stackdump

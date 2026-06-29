@@ -1,0 +1,11 @@
+{
+  "name": "tracking-auditor-extension",
+  "version": "0.1.0",
+  "description": "DevTools extension that records GA4 requests of the inspected tab, including custom-loader and base64-encoded transports.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/package-extension.js"
+  }
+}
