@@ -56,6 +56,15 @@ test('UET consent signal (evt=consent) is distinct, not a custom event', () => {
   assert.equal(def.consent.adStorage, 'denied');
 });
 
+test('UET evt=pid is "personal data", not a custom event', () => {
+  const r = parseUetRequest('https://bat.bing.com/actionp/0?ti=1&evt=pid&pid=em%3D8d9b70fd20e23919cfe664ea5e571db39d72ba1bf17bf57e909ada24be9aa3aa', null);
+  assert.ok(r);
+  assert.equal(r.eventName, 'personal data');
+  assert.equal(r.flags.personalData, true);
+  assert.equal(r.flags.custom, false);
+  assert.equal(r.identifiers.email, 1);    // pid user data still parsed
+});
+
 test('UET CST/Flex endpoint (commerce.bing.com/cst) is detected', () => {
   const r = parseUetRequest('https://commerce.bing.com/cst/0?ti=111111111111&evt=custom&ec=cat&ea=act', null);
   assert.ok(r);

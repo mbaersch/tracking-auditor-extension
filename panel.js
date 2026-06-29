@@ -108,6 +108,7 @@ function flagPills(r) {
   if (r.provider === 'uet') {
     const f = r.flags || {};
     if (f.consentEvent) out.push('<span class="pill pill-consent-info" title="evt=consent — a consent signal (Microsoft Consent Mode), not a tracking event">consent signal</span>');
+    if (f.personalData) out.push('<span class="pill pill-em" title="evt=pid — payload is user data / enhanced conversions only">personal data</span>');
     if (f.custom)    out.push('<span class="pill pill-ee" title="Custom event (evt=custom) — typically a conversion goal">custom event</span>');
     if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (prodid / pagetype / ecomm_*)">ecommerce</span>');
     if (r.revenue) {
