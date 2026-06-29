@@ -3,7 +3,7 @@
 // instance (i.e. once per inspected tab).
 chrome.devtools.panels.create(
   'Tracking Auditor',
-  '',            // icon path (none yet)
+  'icon-32.png',
   'panel.html',
   () => { /* panel created */ }
 );
