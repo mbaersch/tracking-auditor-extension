@@ -31,11 +31,6 @@ function formatTime(d) {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
 }
 
-function shortPath(url) {
-  try { const u = new URL(url); return u.host + u.pathname; }
-  catch (e) { return url; }
-}
-
 // --- pill / summary rendering ---------------------------------------------
 
 const TRANSPORT_PILL = {
@@ -86,7 +81,9 @@ function paramRows(obj) {
 function detailHtml(r) {
   const meta = [
     ['event (en)', r.en], ['measurement id (tid)', r.tid],
-    ['transport', r.transport], ['method', r.method], ['host', r.host],
+    ['transport', r.transport], ['method', r.method],
+    ['request url', r.effectiveUrl],
+    ['original (masked) url', r._originalUrl && r._originalUrl !== r.effectiveUrl ? r._originalUrl : null],
   ].filter(([, v]) => v != null && v !== '');
 
   let consentSection = '';
@@ -135,16 +132,18 @@ function appendBlockDom(block) {
 }
 
 function appendEventDom(block, r) {
+  const dl = (r.queryParams && r.queryParams.dl) || (r.bodyParams && r.bodyParams.dl) || null;
   const card = document.createElement('div');
   card.className = `ev t-${r.transport}`;
   card.innerHTML = `
     <div class="ev-head">
       <span class="ev-time">${escapeHtml(formatTime(new Date(r._ts)))}</span>
       <span class="ev-method">${escapeHtml(r.method)}</span>
-      <span class="ev-caret" title="Show all parameters">▸</span>
-      <span class="ev-host">${escapeHtml(shortPath(r.effectiveUrl))}</span>
+      ${r.tid ? `<span class="ev-tid" title="Measurement ID (tid)">${escapeHtml(r.tid)}</span>` : ''}
+      <span class="ev-caret" title="Show all parameters">▼</span>
     </div>
     <div class="ev-name">${escapeHtml(r.en || '(no event name)')}</div>
+    ${dl ? `<div class="ev-dl" title="document location (dl)">${escapeHtml(dl)}</div>` : ''}
     <div class="ev-pills">${transportPill(r.transport)}${consentPills(r.consent)}</div>
     ${identifierSummary(r.identifiers, r.em) ? `<div class="ev-summary">${identifierSummary(r.identifiers, r.em)}</div>` : ''}
     ${detailHtml(r)}`;
@@ -154,7 +153,7 @@ function appendEventDom(block, r) {
     const caret = card.querySelector('.ev-caret');
     if (det) {
       det.hidden = !det.hidden;
-      if (caret) { caret.textContent = det.hidden ? '▸' : '▾'; caret.title = det.hidden ? 'Show all parameters' : 'Hide parameters'; }
+      if (caret) { caret.textContent = det.hidden ? '▼' : '▲'; caret.title = det.hidden ? 'Show all parameters' : 'Hide parameters'; }
     }
   });
   block._eventsEl.appendChild(card);
@@ -188,6 +187,7 @@ function onRequest(harEntry) {
   const r = parseGa4Request(req.url, req.postData);
   if (!r) return;
   r.method = req.method || r.method;
+  r._originalUrl = req.url;
   r._ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   const block = currentBlock();
   block.events.push(r);
