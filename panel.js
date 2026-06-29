@@ -243,19 +243,32 @@ function applyFilter() {
 
 // --- DOM building (incremental, preserves expanded state) ------------------
 
+function blockHeadHtml(block) {
+  return `<span class="blk-time">${escapeHtml(formatTime(new Date(block.navTime)))}</span>${
+    escapeHtml(block.navUrl || '(current page)')}`;
+}
+
 function appendBlockDom(block) {
   const el = document.createElement('div');
   el.className = 'blk';
   const head = document.createElement('div');
   head.className = 'blk-head';
-  head.innerHTML = `<span class="blk-time">${escapeHtml(formatTime(new Date(block.navTime)))}</span>${
-    escapeHtml(block.navUrl || '(current page)')}`;
+  head.innerHTML = blockHeadHtml(block);
   const events = document.createElement('div');
   events.className = 'blk-events';
   el.append(head, events);
   blocksEl.appendChild(el);
   block._el = el;
+  block._headEl = head;
   block._eventsEl = events;
+}
+
+// Backfill the URL of a block that was opened before onNavigated fired (so its
+// title shows the real page instead of the "(current page)" placeholder).
+function setBlockUrl(block, url) {
+  if (!url || block.navUrl) return;
+  block.navUrl = url;
+  if (block._headEl) block._headEl.innerHTML = blockHeadHtml(block);
 }
 
 function appendEventDom(block, r) {
@@ -331,6 +344,7 @@ function onRequest(harEntry) {
   r._ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   r._search = buildSearchText(r);
   const block = currentBlock();
+  if (!block.navUrl) setBlockUrl(block, docLocation(r));   // first block opened pre-onNavigated
   block.events.push(r);
   appendEventDom(block, r);
   renderStatus();
