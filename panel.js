@@ -364,4 +364,25 @@ clearBtn.addEventListener('click', () => {
   renderStatus();
 });
 
+// Record settings ("in"): collapsible, toggles which services are captured.
+const settingsEl = document.getElementById('settings');
+const settingsBtn = document.getElementById('settingsBtn');
+settingsBtn.addEventListener('click', () => {
+  settingsEl.hidden = !settingsEl.hidden;
+  settingsBtn.classList.toggle('active', !settingsEl.hidden);
+});
+for (const cb of document.querySelectorAll('input[data-rec]')) {
+  cb.addEventListener('change', () => { state.record[cb.dataset.rec] = cb.checked; });
+}
+
+// Display filter ("out"): independent of capture — hides cards without dropping
+// the captured data, so unchecking and re-checking brings them straight back.
+for (const cb of document.querySelectorAll('input[data-flt]')) {
+  cb.addEventListener('change', () => { state.filter[cb.dataset.flt] = cb.checked; applyFilter(); });
+}
+document.getElementById('filterText').addEventListener('input', (e) => {
+  state.filter.text = e.target.value;
+  applyFilter();
+});
+
 renderStatus();

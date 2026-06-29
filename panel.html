@@ -14,6 +14,7 @@
       --surface-alt: #f1f5f9;
       --surface-warm: #fff7ed;
       --surface-warm-hover: #fef0e0;
+      --surface-cool: #eff6ff;
       --surface-hover-primary: #fef9f4;
       --text: #1e293b;
       --text-muted: #64748b;
@@ -31,6 +32,7 @@
         --surface-alt: #262a33;
         --surface-warm: #2a2218;
         --surface-warm-hover: #332918;
+        --surface-cool: #1a2230;
         --surface-hover-primary: #2a2018;
         --text: #e2e8f0;
         --text-muted: #94a3b8;
@@ -46,13 +48,27 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 12px; }
 
-    /* Toolbar */
-    .toolbar { position: sticky; top: 0; z-index: 50; display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    /* Sticky header: toolbar + collapsible record settings + filter bar */
+    .head { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; }
     .toolbar button { font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer; font-weight: 600; font-family: inherit; }
     .toolbar button:hover { border-color: var(--primary); color: var(--primary); }
     .toolbar button.recording { background: #dc2626; color: #fff; border-color: #dc2626; }
     .toolbar button.recording:hover { filter: brightness(1.05); color: #fff; }
+    .toolbar button.icon-btn { padding: 5px 9px; }
+    .toolbar button.icon-btn.active { border-color: var(--primary); color: var(--primary); background: var(--surface-hover-primary); }
     .rec-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    /* Record settings ("in") and filter bar ("out") — independent control rows */
+    .ctl-row { display: flex; gap: 12px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 11px; flex-wrap: wrap; }
+    .ctl-row[hidden] { display: none; }
+    .ctl-label { font-weight: 700; color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px; }
+    .ctl-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); }
+    .ctl-row input[type="checkbox"] { accent-color: var(--secondary); cursor: pointer; margin: 0; }
+    .ctl-hint { color: var(--text-faint); font-style: italic; }
+    .settings { background: var(--surface-alt); }
+    #filterText { flex: 1; min-width: 100px; font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-family: inherit; }
+    #filterText:focus { outline: none; border-color: var(--primary); }
     .rec-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-fainter); }
     .rec-dot.live { background: #dc2626; animation: rec-pulse 1.5s infinite; }
     @keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 70% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
@@ -67,13 +83,12 @@
     .blk-head .blk-time { color: var(--text-faint); margin-right: 8px; }
     .blk-events { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 
-    /* Event cards */
-    .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
-    .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm); }
-    /* Provider accent on the left edge — aids scanning a mixed GA4/Meta stream. */
-    .ev.p-ga4  { border-left: 3px solid var(--secondary); }
-    .ev.p-meta { border-left: 3px solid #1877f2; }
-    .ev { cursor: pointer; }
+    /* Event cards — tinted per provider so a mixed GA4/Meta stream scans easily
+       (warm for GA4, cool blue for Meta; masked GA4 transports a touch warmer). */
+    .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+    .ev.p-ga4  { background: var(--surface-warm); }
+    .ev.p-meta { background: var(--surface-cool); }
+    .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
     .ev-method { font-weight: 700; color: var(--secondary); font-size: 9px; }
@@ -113,11 +128,26 @@
   </style>
 </head>
 <body>
-  <div class="toolbar">
-    <button id="recordBtn">Record</button>
-    <button id="clearBtn">Clear</button>
-    <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 pages</span></span>
-  </div>
+  <header class="head">
+    <div class="toolbar">
+      <button id="recordBtn">Record</button>
+      <button id="clearBtn">Clear</button>
+      <button id="settingsBtn" class="icon-btn" title="Capture settings — which services are recorded">⚙</button>
+      <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 pages</span></span>
+    </div>
+    <div id="settings" class="ctl-row settings" hidden>
+      <span class="ctl-label">Record</span>
+      <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
+      <label><input type="checkbox" data-rec="meta" checked> Meta</label>
+      <span class="ctl-hint">which services are captured (applies to new hits)</span>
+    </div>
+    <div class="ctl-row filterbar">
+      <span class="ctl-label">Show</span>
+      <label><input type="checkbox" data-flt="ga4" checked> GA4</label>
+      <label><input type="checkbox" data-flt="meta" checked> Meta</label>
+      <input type="search" id="filterText" placeholder="filter by event, id, parameter…" autocomplete="off">
+    </div>
+  </header>
   <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4 and Meta requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
