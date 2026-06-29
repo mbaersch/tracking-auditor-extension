@@ -6,3 +6,8 @@ playwright-report/
 tmp-*/
 .DS_Store
 *.stackdump
+
+# Captured traffic / session exports used only as fixture sources — never commit
+# (large, may carry PII). The relevant hits are baked into tests/*.test.js.
+*.har
+tag-assistant-*.json

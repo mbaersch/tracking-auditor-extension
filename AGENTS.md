@@ -44,10 +44,19 @@ that is in scope. Recomputing or verifying hashes is out of scope.
 
 ## Providers (status)
 
-GA4 · Meta Pixel · Bing UET · **TikTok Pixel** · **Pinterest Tag** — v0.4.0,
-50 unit tests green. Detection/decode for GA4 (Stape base64, custom path) was
-ported from the sibling EC-Validator. Next provider (last): **Google Ads**.
+GA4 · Meta Pixel · Bing UET · **TikTok Pixel** · **Pinterest Tag** ·
+**Google Ads** — 65 unit tests green. Detection/decode for GA4 (Stape base64,
+custom path) was ported from the sibling EC-Validator. All providers complete.
 See `README.md` and `docs/2026-06-29-reference-tiktok-pinterest.md`.
+
+Google Ads (`lib/googleads.js`) is the one provider that **collapses** transport
+fan-out: one user action fans out across many mirrored endpoints
+(`pagead/conversion` + `ccm/conversion` + server `viewthroughconversion` →
+`1p-conversion` ×.com/.de; remarketing across `viewthroughconversion` +
+`rmkt/collect` + `1p-user-list`). The parser tags each record with a
+`_collapseKey` (rooted on the `AW-<convId>` anchor) + `_transportRank`; the panel
+folds every mirror of one logical signal into a single card (`×N transports`),
+keeping the richest mirror's payload. Built against a real 40-hit HAR capture.
 
 ## Commands
 
@@ -69,12 +78,14 @@ See `README.md` and `docs/2026-06-29-reference-tiktok-pinterest.md`.
 
 ## Known issues / next TODOs
 
-- **Pinterest double-logging (first up next session).** Pinterest currently shows
-  up **twice** in the log: there is a request that, after a **307 redirect**,
-  re-fires to pick up a cookie — so the same hit is captured both before and after
-  the redirect. Dedup these (e.g. by redirect chain / identical event signature)
-  so each Pinterest event appears once. Watch that the fix doesn't swallow
-  genuinely distinct hits.
+- **Google Ads first-party / sGTM** detection is wired (path on a non-Google host
+  → `transport: first-party`) but **untested** — no real fixture yet. Verify
+  against a captured sGTM Ads hit.
+- `*.har` / `tag-assistant-*.json` are git-ignored: capture sources, never
+  committed. The relevant hits live baked into `tests/googleads.test.js`.
+- The Pinterest double-logging seen earlier was **not** a 307 redirect — it was
+  the Pinterest Tag Helper extension appending a `dbgppce=true` debug hit. No code
+  fix needed; resolved by disabling the helper.
 
 ## Sibling project
 
