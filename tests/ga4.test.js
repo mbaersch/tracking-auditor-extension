@@ -86,6 +86,12 @@ test('identifier summary from em tokens', () => {
   assert.deepEqual(ids, { email: 1, phone: 1, name: 1, address: 1 });
 });
 
+test('accepts HAR-style postData object (panel interface)', () => {
+  const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X', { mimeType: 'text/plain', text: 'en=add_to_cart&cu=EUR' });
+  assert.ok(r);
+  assert.equal(r.en, 'add_to_cart');
+});
+
 test('consent gcd decoding', () => {
   const c = parseConsent({ gcd: '13t3t3t3t5' }, null);
   assert.ok(c);
