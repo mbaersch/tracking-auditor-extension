@@ -92,6 +92,20 @@ test('accepts HAR-style postData object (panel interface)', () => {
   assert.equal(r.en, 'add_to_cart');
 });
 
+test('flags: session start, first visit, ep count (unique across query+body)', () => {
+  const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=page_view&_ss=1&_fv=1&ep.foo=a&epn.bar=2', null);
+  assert.equal(r.flags.sessionStart, true);
+  assert.equal(r.flags.firstVisit, true);
+  assert.equal(r.flags.epCount, 2);
+});
+
+test('flags default to false / 0 when absent', () => {
+  const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=page_view', null);
+  assert.equal(r.flags.sessionStart, false);
+  assert.equal(r.flags.firstVisit, false);
+  assert.equal(r.flags.epCount, 0);
+});
+
 test('consent gcd decoding', () => {
   const c = parseConsent({ gcd: '13t3t3t3t5' }, null);
   assert.ok(c);

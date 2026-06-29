@@ -61,6 +61,15 @@ function identifierSummary(ids, em) {
   return pills.join('');
 }
 
+function flagPills(flags) {
+  if (!flags) return '';
+  const out = [];
+  if (flags.sessionStart) out.push('<span class="pill pill-event" title="_ss=1 — session start">session start</span>');
+  if (flags.firstVisit)   out.push('<span class="pill pill-event" title="_fv=1 — first visit">first visit</span>');
+  if (flags.epCount)      out.push(`<span class="pill pill-ep" title="${flags.epCount} custom event parameter(s): ep.* / epn.*">ep ×${flags.epCount}</span>`);
+  return out.join('');
+}
+
 function consentPills(consent) {
   if (!consent) return '';
   const stateCls = (s) => s === 'granted' ? 'pill-consent-granted' : s === 'denied' ? 'pill-consent-denied' : 'pill-consent-unset';
@@ -144,7 +153,7 @@ function appendEventDom(block, r) {
     </div>
     <div class="ev-name">${escapeHtml(r.en || '(no event name)')}</div>
     ${dl ? `<div class="ev-dl" title="document location (dl)">${escapeHtml(dl)}</div>` : ''}
-    <div class="ev-pills">${transportPill(r.transport)}${consentPills(r.consent)}</div>
+    <div class="ev-pills">${transportPill(r.transport)}${flagPills(r.flags)}${consentPills(r.consent)}</div>
     ${identifierSummary(r.identifiers, r.em) ? `<div class="ev-summary">${identifierSummary(r.identifiers, r.em)}</div>` : ''}
     ${detailHtml(r)}`;
   card.addEventListener('click', (e) => {
