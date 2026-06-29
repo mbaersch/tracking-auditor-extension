@@ -16,7 +16,11 @@ The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
 
-Step 2 (planned): Meta/Facebook detection.
+Roadmap:
+- **Step 1 (done):** GA4 across all transports.
+- **Step 2 (next, prioritised):** Meta/Facebook requests. Motivation: Meta's own
+  extension is now login-gated — this fills that gap.
+- **Step 3 (planned):** Bing / Microsoft UET (the official UET Helper is poor).
 
 ## Architecture
 

@@ -1,6 +1,12 @@
 # Tracking Auditor Extension — Design (Step 1)
 
-Status: approved 2026-06-29. Reduziert auf Step 1 (GA4). Meta/Facebook ist Step 2.
+Status: approved 2026-06-29. Reduziert auf Step 1 (GA4).
+
+Roadmap: **Step 1 (umgesetzt)** GA4 aller Transporte · **Step 2 (als Nächstes,
+vom User priorisiert)** Meta/Facebook — Metas eigene Extension ist login-gebunden,
+diese Lücke füllen wir · **Step 3** Bing / Microsoft UET (UET Helper ist schwach).
+Jeder Schritt erweitert `lib/ga4.js`-Analog um eigene Erkennung; die DevTools-Schale
+und UI-Struktur (Blöcke pro Seitenaufruf, Karten, Pills) bleiben.
 
 ## Zweck
 
