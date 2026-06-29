@@ -171,7 +171,7 @@ function appendEventDom(block, r) {
 }
 
 function renderStatus() {
-  recCount.textContent = `${totalEvents()} events / ${state.blocks.length} blocks`;
+  recCount.textContent = `${totalEvents()} events / ${state.blocks.length} pages`;
   recDot.classList.toggle('live', state.recording);
   recordBtn.textContent = state.recording ? 'Stop' : 'Start & Reload';
   recordBtn.classList.toggle('recording', state.recording);
