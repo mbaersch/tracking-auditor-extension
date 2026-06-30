@@ -761,17 +761,43 @@ settingsBtn.addEventListener('click', () => {
   settingsBtn.classList.toggle('active', !settingsEl.hidden);
 });
 for (const cb of document.querySelectorAll('input[data-rec]')) {
-  cb.addEventListener('change', () => { state.record[cb.dataset.rec] = cb.checked; });
+  cb.addEventListener('change', () => { state.record[cb.dataset.rec] = cb.checked; saveSettings(); });
 }
 
 // Display filter ("out"): independent of capture — hides cards without dropping
 // the captured data, so unchecking and re-checking brings them straight back.
 for (const cb of document.querySelectorAll('input[data-flt]')) {
-  cb.addEventListener('change', () => { state.filter[cb.dataset.flt] = cb.checked; applyFilter(); });
+  cb.addEventListener('change', () => { state.filter[cb.dataset.flt] = cb.checked; applyFilter(); saveSettings(); });
 }
 document.getElementById('filterText').addEventListener('input', (e) => {
   state.filter.text = e.target.value;
   applyFilter();
 });
 
+// --- settings persistence --------------------------------------------------
+// Record toggles and filter toggles are scoped to the extension (chrome.storage),
+// not the inspected tab — so they survive closing DevTools and switching tabs.
+// The free-text filter is intentionally left out: a persisted search would
+// silently hide cards on the next open.
+const SETTINGS_KEY = 'trackingAuditorSettings';
+
+function saveSettings() {
+  const { text, ...filterToggles } = state.filter;
+  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles } });
+}
+
+// Pull persisted toggles into state, then sync the checkboxes to match.
+function loadSettings() {
+  chrome.storage.local.get(SETTINGS_KEY, (data) => {
+    const saved = data && data[SETTINGS_KEY];
+    if (!saved) return;
+    if (saved.record) Object.assign(state.record, saved.record);
+    if (saved.filter) Object.assign(state.filter, saved.filter);
+    for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
+    for (const cb of document.querySelectorAll('input[data-flt]')) cb.checked = !!state.filter[cb.dataset.flt];
+    applyFilter();
+  });
+}
+
+loadSettings();
 renderStatus();
