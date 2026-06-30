@@ -65,7 +65,8 @@
     .toolbar button:hover { border-color: var(--primary); color: var(--primary); }
     .toolbar button.recording { background: #dc2626; color: #fff; border-color: #dc2626; }
     .toolbar button.recording:hover { filter: brightness(1.05); color: #fff; }
-    .toolbar button.icon-btn { padding: 5px 9px; }
+    .toolbar button.icon-btn { padding: 5px 9px; display: inline-flex; align-items: center; justify-content: center; }
+    .toolbar button.icon-btn svg { display: block; }
     .toolbar button.icon-btn.active { border-color: var(--primary); color: var(--primary); background: var(--surface-hover-primary); }
     .rec-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: auto; }
 
@@ -154,6 +155,13 @@
       <button id="recordBtn">Record</button>
       <button id="clearBtn">Clear</button>
       <button id="settingsBtn" class="icon-btn" title="Capture settings — which services are recorded">⚙</button>
+      <button id="exportBtn" class="icon-btn" title="Export the currently visible events to a JSON file">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v7"/><path d="M5 6.5 8 9.5l3-3"/><path d="M3 13h10"/></svg>
+      </button>
+      <button id="importBtn" class="icon-btn" title="Open a previously exported JSON capture">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9.5v-7"/><path d="M5 5.5 8 2.5l3 3"/><path d="M3 13h10"/></svg>
+      </button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
       <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 pages</span></span>
     </div>
     <div id="settings" class="ctl-row settings" hidden>

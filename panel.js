@@ -10,6 +10,9 @@ import { parseGoogleAdsRequest } from './lib/googleads.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
 const recDot    = document.getElementById('recDot');
 const recCount  = document.getElementById('recCount');
 const emptyEl   = document.getElementById('empty');
@@ -751,6 +754,93 @@ clearBtn.addEventListener('click', () => {
   state.blocks = [];
   blocksEl.innerHTML = '';
   renderStatus();
+});
+
+// --- export / import -------------------------------------------------------
+// A capture is a self-describing JSON document: the currently *visible* events
+// (filter-sensitive), grouped per page load. Re-importing replays them through
+// the same render pipeline, so the extension doubles as a reader for documented
+// setups. Only the DOM handle (_el) is dropped on the way out — every data field
+// is kept so the round-trip is lossless.
+const CAPTURE_TYPE = 'tracking-auditor-capture';
+
+function recordForExport(r) {
+  const out = {};
+  for (const k in r) if (k !== '_el') out[k] = r[k];
+  return out;
+}
+
+function captureDomain() {
+  for (let i = state.blocks.length - 1; i >= 0; i--) {
+    const u = state.blocks[i].navUrl;
+    if (u) { try { return new URL(u).hostname; } catch (e) { /* not a URL */ } }
+  }
+  return 'capture';
+}
+
+function captureTimestamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+exportBtn.addEventListener('click', () => {
+  const blocks = [];
+  for (const b of state.blocks) {
+    const events = b.events.filter(cardMatchesFilter).map(recordForExport);
+    if (events.length) blocks.push({ navUrl: b.navUrl, navTime: b.navTime, events });
+  }
+  if (!blocks.length) { alert('No visible events to export.'); return; }
+  const payload = { type: CAPTURE_TYPE, version: 1, exportedAt: new Date().toISOString(), blocks };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${captureDomain()}_${captureTimestamp()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// Rebuild the view from a loaded capture. Recording is stopped (reader mode) and
+// the current blocks are replaced; the active display filter still applies, so
+// the imported cards honor the Show toggles just like live ones.
+function loadCapture(data) {
+  state.recording = false;
+  state.blocks = [];
+  blocksEl.innerHTML = '';
+  for (const b of data.blocks) {
+    const block = { navUrl: b.navUrl, navTime: b.navTime, events: [] };
+    state.blocks.push(block);
+    appendBlockDom(block);
+    for (const r of (b.events || [])) {
+      block.events.push(r);
+      appendEventDom(block, r);
+    }
+  }
+  renderStatus();
+}
+
+importBtn.addEventListener('click', () => importFile.click());
+importFile.addEventListener('change', () => {
+  const file = importFile.files && importFile.files[0];
+  importFile.value = '';   // reset so the same file can be re-imported
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch (e) { alert('Could not parse the file as JSON.'); return; }
+    if (!data || data.type !== CAPTURE_TYPE || !Array.isArray(data.blocks)) {
+      alert('Not a Tracking Auditor capture file.');
+      return;
+    }
+    if (state.blocks.length && !confirm('Replace the current capture with the loaded file?')) return;
+    loadCapture(data);
+  };
+  reader.onerror = () => alert('Could not read the file.');
+  reader.readAsText(file);
 });
 
 // Record settings ("in"): collapsible, toggles which services are captured.
