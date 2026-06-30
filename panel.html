@@ -33,6 +33,9 @@
     }
     @media (prefers-color-scheme: dark) {
       :root {
+        /* Lift the teal so IDs/method (.ev-tid, .ev-method) stay legible on the
+           dark surface — the print-dark #005141 all but vanishes there. */
+        --secondary: #2dd4bf;
         --bg: #0f1115;
         --surface: #1c1f26;
         --surface-alt: #262a33;
