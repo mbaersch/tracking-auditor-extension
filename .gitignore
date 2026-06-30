@@ -4,7 +4,6 @@ dist/
 test-results/
 playwright-report/
 tmp-*/
-webstore/
 .DS_Store
 *.stackdump
 
