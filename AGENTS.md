@@ -61,9 +61,15 @@ keeping the richest mirror's payload. Built against a real 40-hit HAR capture.
 ## Commands
 
 - `npm test` — `node --test` over `tests/*.test.js`.
-- `npm run build` — **currently broken**: `scripts/package-extension.js` does not
-  exist yet (open task). Manual load: `chrome://extensions` → Developer mode →
-  Load unpacked → this folder.
+- `npm run build` — packs the runtime files into `dist/tracking-auditor-<ver>.zip`
+  (dependency-free, see `scripts/package-extension.js`). Manual load:
+  `chrome://extensions` → Developer mode → Load unpacked → this folder.
+- `npm run screenshots` — regenerates the Chrome Web Store assets into `webstore/`
+  (git-ignored): a static server hosts `panel.html`, Playwright stubs the `chrome`
+  API and replays the synthetic demo capture (`scripts/fixtures-demo.js`) through
+  the real `onRequest` pipeline, then shoots store screenshots (1280×800, light +
+  dark) and promo tiles (440×280, 1400×560). Needs `npm install` +
+  `npx playwright install chromium` once.
 
 ## Conventions
 

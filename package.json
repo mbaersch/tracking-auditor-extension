@@ -6,6 +6,10 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "build": "node scripts/package-extension.js"
+    "build": "node scripts/package-extension.js",
+    "screenshots": "node scripts/generate-screenshots.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
   }
 }
