@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tracking Auditor",
   "version": "0.5.0",
-  "description": "Records GA4, Meta Pixel, Bing UET, TikTok Pixel, Pinterest Tag and Google Ads requests of the inspected tab in DevTools, including custom-loader, base64-encoded and first-party transports.",
+  "description": "Records GA4, Meta Pixel, Bing UET, TikTok Pixel, Pinterest Tag and Google Ads requests in DevTools.",
   "minimum_chrome_version": "114",
   "permissions": ["storage"],
   "icons": {

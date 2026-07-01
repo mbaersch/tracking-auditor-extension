@@ -64,33 +64,8 @@ The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
 
-Roadmap:
-- **Step 1 (done):** GA4 across all transports.
-- **Step 2 (done):** Meta/Facebook requests. Motivation: Meta's own extension is
-  now login-gated — this fills that gap.
-- **Step 3 (done):** Bing / Microsoft UET (the official UET Helper is poor).
-- **Step 4 (done):** TikTok Pixel (`analytics.tiktok.com/api/v2/pixel`), incl. the
-  base64 `?analytics_message=` transport and TikTok's own signal diagnostics.
-- **Step 5 (done):** Pinterest Tag (`ct.pinterest.com/v3`), enhanced match + ed/pd/ad.
-- **Step 6 (done):** Google Ads — conversion / remarketing / measurement / UPD across
-  googleadservices, doubleclick and google.com endpoints, with transport-collapse.
-
-## Architecture
-
-Captures via `chrome.devtools.network.onRequestFinished` (HAR), so it needs **no**
-host permissions — the manifest is essentially just `devtools_page`. All logic
-runs in the panel; detection/parsing lives in `lib/ga4.js`, `lib/meta.js`,
-`lib/uet.js`, `lib/tiktok.js`, `lib/pinterest.js` and `lib/googleads.js` (pure
-functions, unit-tested), with shared HTTP-param extraction in `lib/params.js`.
-Adding a provider = one `lib/<x>.js` + an entry in the panel's `PARSERS` array +
-its render branches and a record/show checkbox.
-
-See [docs/2026-06-29-design-step1.md](docs/2026-06-29-design-step1.md) for the full design.
-
-## Develop
+## Install
 
 ```
 # Load unpacked: chrome://extensions → Developer mode → Load unpacked → this folder
-npm test     # unit tests for all lib/*.js provider parsers
-npm run build  # → dist/tracking-auditor-<version>.zip
 ```
