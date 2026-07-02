@@ -65,6 +65,8 @@ export const DEMO_BLOCKS = [
       { url: 'https://www.google.com/ccm/collect?rcb=18&frm=0&auid=1235240376.1778240583&dt=Enhanced%20Conversions%20Test%20Page&en=page_view&dl=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&dr=tagassistant.google.com&rnd=294733418.1782761414&navt=r&npa=0&gtm=45Pe66p0v9210171140&gcs=G111&gcd=13r3r3r2r5l1&dma=1&tids=AW-1071635065&tid=AW-1071635065&fmt=8' },
       // TikTok Pageview (POST, JSON body)
       { url: 'https://analytics.tiktok.com/api/v2/pixel', method: 'POST', postData: { text: tiktokPageview } },
+      // LinkedIn Insight Tag page view (px collect beacon)
+      { url: 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1782761000&url=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&tm=gtmv2' },
     ],
   },
   {
@@ -83,6 +85,8 @@ export const DEMO_BLOCKS = [
       { url: 'https://www.google.com/ccm/collect?rcb=18&frm=0&ae=g&auid=1235240376.1778240583&dt=Shop&en=add_to_cart&dl=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&rnd=294733418.1782761414&navt=r&npa=0&epn.value=99.95&_tu=CA&gtm=45Pe66p0v9210171140&gcs=G111&gcd=13r3r3r2r5l1&dma=1&tids=AW-1071635065&tid=AW-1071635065&fmt=8' },
       // TikTok AddToCart (POST, JSON body)
       { url: 'https://analytics.tiktok.com/api/v2/pixel', method: 'POST', postData: { text: tiktokAddToCart } },
+      // LinkedIn Insight Tag conversion (px collect beacon, conversionId set)
+      { url: 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1782761414&conversionId=111111111111&url=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&tm=gtmv2' },
     ],
   },
 ];

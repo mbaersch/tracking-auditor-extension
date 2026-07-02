@@ -107,8 +107,8 @@ function promoHtml(iconDataUri, w, h) {
       border-radius:${999 * s}px;padding:${4 * s}px ${12 * s}px;}
   </style></head><body><div class="tile">
     <div class="logo"><img src="${iconDataUri}"><div class="name">Tracking <b>Auditor</b></div></div>
-    <div class="tag">Every GA4, Meta, Bing, TikTok, Pinterest and Google Ads hit of the inspected tab — decoded live in DevTools.</div>
-    <div class="chips"><span class="chip">GA4</span><span class="chip">Meta</span><span class="chip">Bing</span><span class="chip">TikTok</span><span class="chip">Pinterest</span><span class="chip">Google Ads</span></div>
+    <div class="tag">Every GA4, Meta, Bing, TikTok, Pinterest, Google Ads and LinkedIn hit of the inspected tab — decoded live in DevTools.</div>
+    <div class="chips"><span class="chip">GA4</span><span class="chip">Meta</span><span class="chip">Bing</span><span class="chip">TikTok</span><span class="chip">Pinterest</span><span class="chip">Google Ads</span><span class="chip">LinkedIn</span></div>
   </div></body></html>`;
 }
 
