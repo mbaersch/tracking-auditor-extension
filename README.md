@@ -1,8 +1,8 @@
 # Tracking Auditor Extension
 
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
-**TikTok**, **Pinterest** and **Google Ads** requests of the inspected tab —
-including transports that common debuggers miss:
+**TikTok**, **Pinterest**, **Google Ads** and **LinkedIn** requests of the inspected
+tab — including transports that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -53,12 +53,22 @@ Google Ads:
   dynamic-remarketing product `data` (`google_business_vertical`/`id`), line items,
   and `gcs`/`gcd` consent. Pure Privacy-Sandbox / telemetry pings are filtered out.
 
+LinkedIn Insight Tag:
+- Standard beacon (`px.ads.linkedin.com/collect`), with the `px4` mirror (which adds
+  the encrypted-IP `e_ipv6`) folded into a **single card** — the richer mirror wins.
+- Reads the partner id (`pid`), tells a plain **PageView** from a **Conversion**
+  (`conversionId` present), and surfaces the page `url`, tag manager (`tm`) and the
+  `e_ipv6` IP hash. The `/attribution_trigger` (redundant) and `/wa/` (gzip web-analytics
+  POST) endpoints are ignored — the collect beacon carries the signal worth reading.
+
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, in order, with event
 name, parameters, a user-data summary and (where present) the consent state decoded.
 A collapsible
 **Record** settings row switches services on/off (capture), and an independent
-**Show** filter row (service checkboxes + fulltext) narrows the displayed log.
+**Show** filter row (service checkboxes + fulltext) narrows the displayed log —
+with **all / none** shortcuts to focus on a single service quickly and a **⤓ follow**
+toggle that keeps the newest hits in view while recording.
 
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for

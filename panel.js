@@ -7,6 +7,7 @@ import { parseUetRequest } from './lib/uet.js';
 import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
 import { parseGoogleAdsRequest } from './lib/googleads.js';
+import { parseLinkedInRequest } from './lib/linkedin.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -28,13 +29,15 @@ const PARSERS = [
   // GA4 stays ahead of Google Ads: GA4 only claims /g/collect, Ads owns
   // /ccm/collect (tid=AW-) and the conversion/remarketing/form-data endpoints.
   { id: 'googleads', parse: parseGoogleAdsRequest },
+  { id: 'linkedin', parse: parseLinkedInRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, text: '' }, // display filter (the "out" side)
+  autoScroll: true,                                       // "follow": keep the newest events in view while recording
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -49,6 +52,15 @@ function totalEvents() {
   return state.blocks.reduce((n, b) => n + b.events.length, 0);
 }
 
+// "Follow" the stream: keep the panel pinned to the bottom so new hits scroll
+// into view on their own. Only used on the live-capture path (import doesn't
+// jump). The DevTools panel scrolls the document itself.
+function maybeAutoScroll() {
+  if (!state.autoScroll) return;
+  const el = document.scrollingElement || document.documentElement;
+  el.scrollTop = el.scrollHeight;
+}
+
 function formatTime(d) {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
@@ -61,6 +73,7 @@ function eventName(r) {
   if (r.provider === 'tiktok') return r.event;
   if (r.provider === 'pinterest') return r.event;
   if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
+  if (r.provider === 'linkedin') return r.eventName;
 
   return r.en;
 }
@@ -70,6 +83,7 @@ function accountId(r) {
   if (r.provider === 'tiktok') return r.code;
   if (r.provider === 'pinterest') return r.tid;
   if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
+  if (r.provider === 'linkedin') return r.pid;
   return r.tid;
 }
 function accountTitle(r) {
@@ -78,10 +92,11 @@ function accountTitle(r) {
   if (r.provider === 'tiktok') return 'Pixel Code';
   if (r.provider === 'pinterest') return 'Tag ID (tid)';
   if (r.provider === 'googleads') return 'Conversion ID (AW)';
+  if (r.provider === 'linkedin') return 'Partner ID (pid)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -130,6 +145,11 @@ function providerPills(r) {
     if (r.transport === 'first-party') {
       pills.push('<span class="pill pill-custom" title="First-party / sGTM-proxied Ads endpoint on the site&#39;s own domain (untested)">first-party</span>');
     }
+    return pills.join('');
+  }
+  if (r.provider === 'linkedin') {
+    const pills = ['<span class="pill pill-linkedin" title="LinkedIn Insight Tag — px.ads.linkedin.com/collect">LinkedIn</span>'];
+    if (r.isConversion) pills.push('<span class="pill pill-event" title="conversionId present — a LinkedIn conversion">conversion</span>');
     return pills.join('');
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
@@ -199,6 +219,12 @@ function flagPills(r) {
     if (r._transports && r._transports.length > 1) {
       out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
     }
+    return out.join('');
+  }
+  if (r.provider === 'linkedin') {
+    const f = r.flags || {};
+    if (f.conversion) out.push(`<span class="pill pill-conversion" title="conversionId — the LinkedIn conversion rule id">conv id: ${escapeHtml(r.conversionId)}</span>`);
+    if (f.ipHash)     out.push('<span class="pill pill-em" title="e_ipv6 — encrypted client IP (sent to the px4 mirror)">IP hash</span>');
     return out.join('');
   }
   const f = r.flags;
@@ -496,6 +522,21 @@ function detailHtml(r) {
       if (r.consent.npa != null) rows.push(['npa', r.consent.npa]);
       extras += section('Consent', kvTable(rows));
     }
+  } else if (r.provider === 'linkedin') {
+    meta = [
+      ['event', r.eventName], ['partner id (pid)', r.pid],
+      ['conversion id', r.conversionId],
+      ['transport', r.transport], ['method', r.method],
+      ['tag manager (tm)', r.tagManager], ['version (v)', r.version],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r._transports && r._transports.length) {
+      extras += section(`transports (${r._transports.length})`, kvTable([['mirrors', r._transports.join(' · ')]]));
+    }
+    if (r.ipHash) {
+      extras += section('encrypted IP (e_ipv6)', kvTable([['e_ipv6', r.ipHash]]));
+    }
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],
@@ -709,6 +750,7 @@ function onRequest(harEntry) {
   block.events.push(r);
   appendEventDom(block, r);
   renderStatus();
+  maybeAutoScroll();
 }
 
 // Fold an incoming mirror into an already-displayed record: grow its transport
@@ -732,6 +774,7 @@ function onNavigated(url) {
   if (!state.recording) return;
   startBlock(url);
   renderStatus();
+  maybeAutoScroll();
 }
 
 chrome.devtools.network.onRequestFinished.addListener(onRequest);
@@ -864,6 +907,32 @@ document.getElementById('filterText').addEventListener('input', (e) => {
   applyFilter();
 });
 
+// Bulk "all / none" for the Show row — one gesture instead of ticking each
+// provider as the list grows. Drives the same state + checkboxes as a manual toggle.
+function setAllFilters(on) {
+  for (const cb of document.querySelectorAll('input[data-flt]')) {
+    cb.checked = on;
+    state.filter[cb.dataset.flt] = on;
+  }
+  applyFilter();
+  saveSettings();
+}
+function bindLink(id, fn) {
+  const el = document.getElementById(id);
+  el.addEventListener('click', fn);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+}
+bindLink('fltAll', () => setAllFilters(true));
+bindLink('fltNone', () => setAllFilters(false));
+
+// "Follow" toggle: auto-scroll to the newest events while recording.
+const autoScrollCb = document.getElementById('autoScroll');
+autoScrollCb.addEventListener('change', () => {
+  state.autoScroll = autoScrollCb.checked;
+  saveSettings();
+  maybeAutoScroll();                                     // jump to the bottom the moment it's re-enabled
+});
+
 // --- settings persistence --------------------------------------------------
 // Record toggles and filter toggles are scoped to the extension (chrome.storage),
 // not the inspected tab — so they survive closing DevTools and switching tabs.
@@ -873,7 +942,7 @@ const SETTINGS_KEY = 'trackingAuditorSettings';
 
 function saveSettings() {
   const { text, ...filterToggles } = state.filter;
-  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles } });
+  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, autoScroll: state.autoScroll } });
 }
 
 // Pull persisted toggles into state, then sync the checkboxes to match.
@@ -883,8 +952,10 @@ function loadSettings() {
     if (!saved) return;
     if (saved.record) Object.assign(state.record, saved.record);
     if (saved.filter) Object.assign(state.filter, saved.filter);
+    if (typeof saved.autoScroll === 'boolean') state.autoScroll = saved.autoScroll;
     for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
     for (const cb of document.querySelectorAll('input[data-flt]')) cb.checked = !!state.filter[cb.dataset.flt];
+    autoScrollCb.checked = state.autoScroll;
     applyFilter();
   });
 }
