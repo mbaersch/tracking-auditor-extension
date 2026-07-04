@@ -9,6 +9,7 @@ import { parsePinterestRequest } from './lib/pinterest.js';
 import { parseGoogleAdsRequest } from './lib/googleads.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 import { parseRedditRequest } from './lib/reddit.js';
+import { parseSnapchatRequest } from './lib/snapchat.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -32,13 +33,14 @@ const PARSERS = [
   { id: 'googleads', parse: parseGoogleAdsRequest },
   { id: 'linkedin', parse: parseLinkedInRequest },
   { id: 'reddit', parse: parseRedditRequest },
+  { id: 'snapchat', parse: parseSnapchatRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, text: '' }, // display filter (the "out" side)
   autoScroll: true,                                       // "follow": keep the newest events in view while recording
 };
 
@@ -77,6 +79,7 @@ function eventName(r) {
   if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
   if (r.provider === 'linkedin') return r.eventName;
   if (r.provider === 'reddit')   return r.event;
+  if (r.provider === 'snapchat') return r.event;
 
   return r.en;
 }
@@ -88,6 +91,7 @@ function accountId(r) {
   if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
   if (r.provider === 'linkedin') return r.pid;
   if (r.provider === 'reddit')   return r.pixelId;
+  if (r.provider === 'snapchat') return r.pixelId;
   return r.tid;
 }
 function accountTitle(r) {
@@ -98,10 +102,11 @@ function accountTitle(r) {
   if (r.provider === 'googleads') return 'Conversion ID (AW)';
   if (r.provider === 'linkedin') return 'Partner ID (pid)';
   if (r.provider === 'reddit')   return 'Pixel ID (id)';
+  if (r.provider === 'snapchat') return 'Pixel ID (pid)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -159,6 +164,9 @@ function providerPills(r) {
   }
   if (r.provider === 'reddit') {
     return '<span class="pill pill-reddit" title="Reddit Pixel — alb.reddit.com/rp.gif">Reddit</span>';
+  }
+  if (r.provider === 'snapchat') {
+    return '<span class="pill pill-snapchat" title="Snapchat Pixel — tr.snapchat.com/p">Snapchat</span>';
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
   const sub = GA4_TRANSPORT_SUB[r.transport];
@@ -257,6 +265,17 @@ function flagPills(r) {
     if (f.optOut)       out.push('<span class="pill pill-consent-denied" title="opt_out=1">opt-out</span>');
     return out.join('');
   }
+  if (r.provider === 'snapchat') {
+    const f = r.flags || {};
+    if (f.custom)  out.push('<span class="pill pill-ee" title="Custom event (not a Snapchat standard event)">custom event</span>');
+    if (f.dedup)   out.push('<span class="pill pill-event" title="cdid present — client_deduplication_id (Conversions API dedup)">dedup</span>');
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="e_pr / e_cur">revenue: ${amount}</span>`);
+    }
+    if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (e_*)">ecommerce</span>');
+    return out.join('');
+  }
   const f = r.flags;
   if (!f) return '';
   if (f.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
@@ -332,6 +351,10 @@ function summaryPills(r) {
   } else if (r.provider === 'reddit') {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Advanced matching present (hashed em / pn / external_id)">adv. matching</span>');
+    }
+  } else if (r.provider === 'snapchat') {
+    if (r.flags && r.flags.advancedMatching) {
+      pills.push('<span class="pill pill-em" title="Advanced matching present (hashed u_* / l_* identifiers incl. geo/age)">adv. matching</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -628,6 +651,39 @@ function detailHtml(r) {
     if (r.conversionId)  convRows.push(['conversion id (m.conversionId)', r.conversionId]);
     if (r.conversion && r.conversion.products) convRows.push(['products (m.products)', r.conversion.products]);
     if (convRows.length) extras += section('conversion (m.*)', kvTable(convRows));
+  } else if (r.provider === 'snapchat') {
+    meta = [
+      ['event', r.event], ['pixel id (pid)', r.pixelId],
+      ['transport', r.transport], ['method', r.method],
+      ['integration', r.integration], ['version (v)', r.version],
+      ['client id (u_c1)', r.clientId], ['session id (u_scsid)', r.sessionId], ['click id (u_sclid)', r.clickId],
+      ['page url', r.pageUrl], ['referrer', r.referrer],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+    }
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
+      extras += section('user data (advanced matching — incl. geo/age)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+    if (r.ecommerce) {
+      const e = r.ecommerce;
+      const rows = [];
+      if (e.transactionId) rows.push(['transaction id', e.transactionId]);
+      if (e.numItems)      rows.push(['number of items', e.numItems]);
+      if (e.category)      rows.push(['category', e.category]);
+      if (Array.isArray(e.itemIds)) rows.push(['item ids', e.itemIds.join(', ')]);
+      if (Array.isArray(e.brands))  rows.push(['brands', e.brands.join(', ')]);
+      if (e.searchString)  rows.push(['search string', e.searchString]);
+      if (e.description)   rows.push(['description', e.description]);
+      if (rows.length) extras += section('e-commerce (e_*)', kvTable(rows));
+    }
+    if (r.extras && Object.keys(r.extras).length) {
+      extras += section('purchase extras', `<table class="det-table">${paramRows(r.extras)}</table>`);
+    }
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],

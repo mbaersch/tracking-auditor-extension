@@ -1,7 +1,7 @@
 # Tracking Auditor Extension
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
-**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn** and **Reddit** requests of the
-inspected tab — including transports that common debuggers miss:
+**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn**, **Reddit** and **Snapchat**
+requests of the inspected tab — including transports that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -73,6 +73,15 @@ Reddit Pixel:
   (`auto_em` / `auto_pn`) hashed identifiers as advanced-matching / auto-match indicators —
   this beacon is the only place the Reddit Pixel sends user data.
 
+Snapchat Pixel:
+- Event beacon (`tr.snapchat.com/p`). The `GET /p` hit is the tracking event; the
+  `POST /p` telemetry (context, form-field detection, no identifiers) is ignored.
+- Reads the pixel id (`pid`), the event (`PAGE_VIEW` / `PURCHASE` / …) and e-commerce
+  (`e_pr` / `e_cur` / `e_tid` / `e_iids` / `e_bds` + purchase extras like
+  `client_deduplication_id`, `customer_status`, `success`).
+- Surfaces the full hashed identifier set — email, phone, name, **and geo (city, country,
+  postal, region) and age**, which Snapchat also hashes — as advanced-matching indicators.
+
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, in order, with event
 name, parameters, a user-data summary and (where present) the consent state decoded.
@@ -97,3 +106,13 @@ If you want to modify the extension or run an unreleased version, load it unpack
 3. Enable "Developer mode" (top right)
 4. Click "Load unpacked" and select the project folder
 5. Pin the extension if you want it in the toolbar
+
+## Changelog
+
+### 0.7.0
+- Added the **Reddit Pixel** provider (`alb.reddit.com/rp.gif`): event, conversion data (`m.*`), and both manual (`em`/`pn`/`external_id`) and auto-collected (`auto_em`/`auto_pn`) hashed identifiers.
+- Added the **Snapchat Pixel** provider (`tr.snapchat.com/p`): event, e-commerce (`e_*`), and the full hashed identifier set — email, phone, name, **geo and age** — with the `POST /p` telemetry beacon ignored.
+- **LinkedIn**: the `/wa/` enhanced-conversions POST (`base64(gzip(JSON))`) is now decoded asynchronously into its own card — hashed email, `signalType`, and `liFatId`/`liGiant`.
+
+### 0.6.0
+- Initial release: GA4, Meta Pixel, Bing UET, TikTok Pixel, Pinterest Tag, Google Ads and LinkedIn Insight Tag (standard `/collect`).
