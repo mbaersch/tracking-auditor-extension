@@ -1,0 +1,10 @@
+// Real LinkedIn Insight Tag /wa/ POST bodies (base64(gzip(JSON))) captured on
+// atomkraftwerke24.de, extracted verbatim from linkedin.har. Decoded live by the
+// tests so the base64 -> gzip -> JSON path is exercised end-to-end.
+//
+// WA_PAGE_VISIT: signalType PAGE_VISIT, hem null (fired before lintrk setUserData).
+// WA_CLICK:      signalType CLICK, hem present (SHA-256 email), rich domAttributes.
+
+export const WA_PAGE_VISIT = "H4sIAAAAAAAACm2P0WqDQBBFfyXMo2gSdTVmoZRQ0iD0oTTSl1LC6k50ybpaZ2woIf9ebKBQ6MvAHYYz516gN5pAvoVRLJJ0lb37QNVgen7FgUznQMbLzAc2LYIMV1kcZnG6DsW01F2rjAMJirv2NKgjn3E4YSTmGsGHcbAgoWHuSS4W/9wssGIknjfc2vua24PGcqzvPM/zgr8DfOhVjYVhiyBh6xrlKtSzh8593jxpViAxoeHp9RlLMox7UztlX/BjROJcT6ZZGYlQYbAU62OQolgGqyRLglCkqa7CNErWCfhgqBiUI6sYNcijsoQ+WPOobhSYws4ox7fQGqpAXqCncs+KEWQgrhPlybgT6txt+v4X02AL0o3W+kA/fsVXP5V63uy2h9d8nxdw/QYBXxsklwEAAA==";
+
+export const WA_CLICK = "H4sIAAAAAAAACm1SbWvbMBD+K+M+FruNYyd+gTHS0I6w0sHi9Usp4ySdHRFZ9qTzulLy34fttGtKvwhOp3teTs8zdFp5KO6jeZwslmn2EICXTnd8R87r1kIRz7IAWDcERZRmcZTFy3yZDZeqbVBbKAC5bfYOK34kt6d5cq4IAuidgQJ2zJ0vLi4+eHNBksnz+Y4b86Xm5pci0defz87OzsLTAwLosKZSsyEo4Mru0EpSn9at/TPp9J9K8uxJ80D9SMJrpq2uLZof9LsnzxsFBSTLhVggRWEyj+JQxpkI1SLJwqXMM5VGIsVomNe+dGi9QSYFRYXGUwBGX+OEAkPxVaPlqWi0l1A8Q+fFlpEJijA5DCg32u5Jbeyq615hdtRAAZnKRTqr1HxG8ziPclnRcpkQLmiRRkrEuUrnAiNRRamoFinlsxwVzhNBOWKMCAH40V351A0rWd9s1t8ggJ2jahKl2mbF7LTomfygjgw1ZHlLDVrWchq0vTHBS+sOTf/+7ojve9FohgAY61scwgCXP8vy+y0EIFDua9f2Vm0arGnr5AuG/qheGX6trSVX0t9hjyvhySqy8J96+u7pqeydbx0U0LXaMjkIoGpds5I8pvSI569b12wHrX5KL7ueDkeiqwnWv3O4dn0jfOmIoLh/fmNwTHcAlnfrnTYKiugQvO0P/Cf9OAA95INkeOxJg94P678HiU7BQwB48ikKGcOam3EgHJ2h5HCEmcHhlFD0zO2ppOzwMNrWhsmRunxaG01DLse0Hf4BkRdI/eADAAA=";

@@ -1,5 +1,4 @@
 # Tracking Auditor Extension
-
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
 **TikTok**, **Pinterest**, **Google Ads** and **LinkedIn** requests of the inspected
 tab — including transports that common debuggers miss:
@@ -58,8 +57,13 @@ LinkedIn Insight Tag:
   the encrypted-IP `e_ipv6`) folded into a **single card** — the richer mirror wins.
 - Reads the partner id (`pid`), tells a plain **PageView** from a **Conversion**
   (`conversionId` present), and surfaces the page `url`, tag manager (`tm`) and the
-  `e_ipv6` IP hash. The `/attribution_trigger` (redundant) and `/wa/` (gzip web-analytics
-  POST) endpoints are ignored — the collect beacon carries the signal worth reading.
+  `e_ipv6` IP hash. The `/attribution_trigger` endpoint (redundant) is ignored.
+- The hashed email (`hem`, SHA-256) does **not** ride in the `/collect` beacon — it
+  travels in a `base64(gzip(JSON))` `/wa/` POST body, decoded asynchronously (via
+  `DecompressionStream`) into its own card. That card surfaces the `signalType`, the
+  hashed email as a PII indicator, LinkedIn's first-party ad-tracking ids
+  (`liFatId`/`liGiant`) when present, and the full decoded payload. `/wa/` is the only
+  place LinkedIn's enhanced-conversions PII leaves the browser.
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, in order, with event
@@ -75,7 +79,13 @@ EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
 
 ## Install
+This extension can be installed using the Chrome Web Store: [Tracking Auditor in Chrome Web Store](https://chromewebstore.google.com/detail/tracking-auditor/cngpoecoknpgfjfaafnekjoaeohaejpb)
 
-```
-# Load unpacked: chrome://extensions → Developer mode → Load unpacked → this folder
-```
+### From source (for development or forking)
+If you want to modify the extension or run an unreleased version, load it unpacked:
+
+1. Clone or download this repository
+2. Open `chrome://extensions/`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" and select the project folder
+5. Pin the extension if you want it in the toolbar

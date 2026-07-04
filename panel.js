@@ -7,7 +7,7 @@ import { parseUetRequest } from './lib/uet.js';
 import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
 import { parseGoogleAdsRequest } from './lib/googleads.js';
-import { parseLinkedInRequest } from './lib/linkedin.js';
+import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -223,6 +223,15 @@ function flagPills(r) {
   }
   if (r.provider === 'linkedin') {
     const f = r.flags || {};
+    if (r._endpoint === 'wa') {
+      if (f.signal)      out.push(`<span class="pill pill-event" title="signalType — the LinkedIn /wa/ signal">${escapeHtml(f.signal)}</span>`);
+      if (f.hashedEmail) out.push('<span class="pill pill-em" title="hem — SHA-256 of the email, sent in the /wa/ body (enhanced conversions PII)">hashed email</span>');
+      if (f.liFat)       out.push('<span class="pill pill-ud" title="liFatId / liGiant — LinkedIn first-party ad-tracking id">li_fat</span>');
+      if (r._transports && r._transports.length > 1) {
+        out.push(`<span class="pill pill-ud" title="duplicate fires folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
+      }
+      return out.join('');
+    }
     if (f.conversion) out.push(`<span class="pill pill-conversion" title="conversionId — the LinkedIn conversion rule id">conv id: ${escapeHtml(r.conversionId)}</span>`);
     if (f.ipHash)     out.push('<span class="pill pill-em" title="e_ipv6 — encrypted client IP (sent to the px4 mirror)">IP hash</span>');
     return out.join('');
@@ -294,6 +303,10 @@ function summaryPills(r) {
   } else if (r.provider === 'googleads') {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Enhanced conversions user data present (hashed em token)">enhanced match</span>');
+    }
+  } else if (r.provider === 'linkedin') {
+    if (r.flags && r.flags.hashedEmail) {
+      pills.push('<span class="pill pill-em" title="Enhanced conversions: hashed email (hem) sent in the /wa/ body">enhanced conv.</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -522,6 +535,33 @@ function detailHtml(r) {
       if (r.consent.npa != null) rows.push(['npa', r.consent.npa]);
       extras += section('Consent', kvTable(rows));
     }
+  } else if (r.provider === 'linkedin' && r._endpoint === 'wa') {
+    meta = [
+      ['signal type', r.signalType], ['partner id (pid)', r.pid],
+      ['page title', r.pageTitle], ['page url', r.pageUrl],
+      ['transport', r.transport], ['method', r.method],
+      ['version (scriptVersion)', r.version], ['time', r.time],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) =>
+        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
+      extras += section('enhanced conversions (hem)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+    if (r.liFatId || r.liGiant) {
+      const rows = [];
+      if (r.liFatId) rows.push(['liFatId', r.liFatId]);
+      if (r.liGiant) rows.push(['liGiant', r.liGiant]);
+      extras += section('LinkedIn ad-tracking ids', kvTable(rows));
+    }
+    if (r._transports && r._transports.length > 1) {
+      extras += section(`transports (${r._transports.length})`, kvTable([['fires', r._transports.join(' · ')]]));
+    }
+    if (r.waPayload) {
+      extras += section('full decoded payload',
+        `<pre class="det-dump">${escapeHtml(JSON.stringify(r.waPayload, null, 2))}</pre>`);
+    }
   } else if (r.provider === 'linkedin') {
     meta = [
       ['event', r.eventName], ['partner id (pid)', r.pid],
@@ -730,16 +770,29 @@ function onRequest(harEntry) {
   if (!state.recording) return;
   const req = harEntry && harEntry.request;
   if (!req || !req.url) return;
+  const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   const r = parseRequest(req.url, req.postData);
-  if (!r) return;
+  if (r) { commitRecord(currentBlock(), r, req, ts); return; }
+  // Async side-path: the LinkedIn /wa/ POST is base64(gzip(JSON)) and needs an
+  // async DecompressionStream, so it can't ride the synchronous parser registry.
+  // onRequestFinished listeners are fire-and-forget, so awaiting here is safe; the
+  // block is resolved when the decode settles (it takes ~ms).
+  if (state.record.linkedin && isLinkedInWaRequest(req.url)) {
+    parseLinkedInWaRequest(req.url, req.postData)
+      .then(rec => { if (rec) commitRecord(currentBlock(), rec, req, ts); })
+      .catch(() => {});
+  }
+}
+
+// Stamp, transport-collapse and append a parsed record. Shared by the synchronous
+// registry path and the async LinkedIn /wa/ path.
+function commitRecord(block, r, req, ts) {
   r.method = req.method || r.method;
   r._originalUrl = req.url;
-  r._ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
+  r._ts = ts;
   r._search = buildSearchText(r);
-  const block = currentBlock();
-  // Generic transport-collapse: records carrying a _collapseKey (currently only
-  // Google Ads) fold every transport mirror of one logical hit into a single
-  // card. Other providers have no key and render straight through.
+  // Generic transport-collapse: records carrying a _collapseKey fold every
+  // transport mirror / duplicate fire of one logical hit into a single card.
   if (r._collapseKey) {
     const map = block._collapse || (block._collapse = new Map());
     const existing = map.get(r._collapseKey);
