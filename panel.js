@@ -8,6 +8,7 @@ import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
 import { parseGoogleAdsRequest } from './lib/googleads.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
+import { parseRedditRequest } from './lib/reddit.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -30,13 +31,14 @@ const PARSERS = [
   // /ccm/collect (tid=AW-) and the conversion/remarketing/form-data endpoints.
   { id: 'googleads', parse: parseGoogleAdsRequest },
   { id: 'linkedin', parse: parseLinkedInRequest },
+  { id: 'reddit', parse: parseRedditRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, text: '' }, // display filter (the "out" side)
   autoScroll: true,                                       // "follow": keep the newest events in view while recording
 };
 
@@ -74,6 +76,7 @@ function eventName(r) {
   if (r.provider === 'pinterest') return r.event;
   if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
   if (r.provider === 'linkedin') return r.eventName;
+  if (r.provider === 'reddit')   return r.event;
 
   return r.en;
 }
@@ -84,6 +87,7 @@ function accountId(r) {
   if (r.provider === 'pinterest') return r.tid;
   if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
   if (r.provider === 'linkedin') return r.pid;
+  if (r.provider === 'reddit')   return r.pixelId;
   return r.tid;
 }
 function accountTitle(r) {
@@ -93,10 +97,11 @@ function accountTitle(r) {
   if (r.provider === 'pinterest') return 'Tag ID (tid)';
   if (r.provider === 'googleads') return 'Conversion ID (AW)';
   if (r.provider === 'linkedin') return 'Partner ID (pid)';
+  if (r.provider === 'reddit')   return 'Pixel ID (id)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -151,6 +156,9 @@ function providerPills(r) {
     const pills = ['<span class="pill pill-linkedin" title="LinkedIn Insight Tag — px.ads.linkedin.com/collect">LinkedIn</span>'];
     if (r.isConversion) pills.push('<span class="pill pill-event" title="conversionId present — a LinkedIn conversion">conversion</span>');
     return pills.join('');
+  }
+  if (r.provider === 'reddit') {
+    return '<span class="pill pill-reddit" title="Reddit Pixel — alb.reddit.com/rp.gif">Reddit</span>';
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
   const sub = GA4_TRANSPORT_SUB[r.transport];
@@ -236,6 +244,19 @@ function flagPills(r) {
     if (f.ipHash)     out.push('<span class="pill pill-em" title="e_ipv6 — encrypted client IP (sent to the px4 mirror)">IP hash</span>');
     return out.join('');
   }
+  if (r.provider === 'reddit') {
+    const f = r.flags || {};
+    if (f.custom)      out.push('<span class="pill pill-ee" title="Custom event (not a Reddit standard event) — name in m.customEventName">custom event</span>');
+    if (f.dedup)       out.push('<span class="pill pill-event" title="m.transactionId / m.conversionId present — Conversions API deduplication">dedup</span>');
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="m.value / m.valueDecimal + m.currency">revenue: ${amount}</span>`);
+    }
+    if (f.autoMatching) out.push('<span class="pill pill-ud" title="Auto-collected identifiers present (auto_em / auto_pn)">auto match</span>');
+    if (f.externalId)   out.push('<span class="pill pill-ud" title="external_id present (hashed)">external_id</span>');
+    if (f.optOut)       out.push('<span class="pill pill-consent-denied" title="opt_out=1">opt-out</span>');
+    return out.join('');
+  }
   const f = r.flags;
   if (!f) return '';
   if (f.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
@@ -307,6 +328,10 @@ function summaryPills(r) {
   } else if (r.provider === 'linkedin') {
     if (r.flags && r.flags.hashedEmail) {
       pills.push('<span class="pill pill-em" title="Enhanced conversions: hashed email (hem) sent in the /wa/ body">enhanced conv.</span>');
+    }
+  } else if (r.provider === 'reddit') {
+    if (r.flags && r.flags.advancedMatching) {
+      pills.push('<span class="pill pill-em" title="Advanced matching present (hashed em / pn / external_id)">adv. matching</span>');
     }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
@@ -577,6 +602,32 @@ function detailHtml(r) {
     if (r.ipHash) {
       extras += section('encrypted IP (e_ipv6)', kvTable([['e_ipv6', r.ipHash]]));
     }
+  } else if (r.provider === 'reddit') {
+    meta = [
+      ['event', r.event], ['pixel id (id)', r.pixelId],
+      ['custom event name', r.customEventName],
+      ['transport', r.transport], ['method', r.method],
+      ['integration', r.integration], ['version (v)', r.version],
+      ['page url', r.pageUrl],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+    }
+    if (r.userData) {
+      const rows = Object.values(r.userData).map((f) => {
+        const note = f.hashed ? 'hashed' : '(raw / plain)';
+        const extra = f.list ? ` · ${f.list.length} value(s)` : '';
+        return `<tr><td>${escapeHtml(f.label)}</td><td>${escapeHtml(note)}${escapeHtml(extra)}</td></tr>`;
+      });
+      extras += section('user data (advanced + auto matching)', `<table class="det-table">${rows.join('')}</table>`);
+    }
+    const convRows = [];
+    if (r.transactionId) convRows.push(['transaction id (m.transactionId)', r.transactionId]);
+    if (r.conversionId)  convRows.push(['conversion id (m.conversionId)', r.conversionId]);
+    if (r.conversion && r.conversion.products) convRows.push(['products (m.products)', r.conversion.products]);
+    if (convRows.length) extras += section('conversion (m.*)', kvTable(convRows));
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],

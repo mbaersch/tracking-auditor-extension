@@ -1,7 +1,7 @@
 # Tracking Auditor Extension
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
-**TikTok**, **Pinterest**, **Google Ads** and **LinkedIn** requests of the inspected
-tab — including transports that common debuggers miss:
+**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn** and **Reddit** requests of the
+inspected tab — including transports that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -64,6 +64,14 @@ LinkedIn Insight Tag:
   hashed email as a PII indicator, LinkedIn's first-party ad-tracking ids
   (`liFatId`/`liGiant`) when present, and the full decoded payload. `/wa/` is the only
   place LinkedIn's enhanced-conversions PII leaves the browser.
+
+Reddit Pixel:
+- Browser beacon (`alb.reddit.com/rp.gif`). Reads the pixel id (`id`, `a2_…`), the event
+  (PageVisit / Purchase / Lead / …, custom name in `m.customEventName`) and the
+  conversion data (`m.value` / `m.valueDecimal` / `m.currency` / `m.transactionId`).
+- Surfaces both manually-set (`em` / `pn` / `external_id`) and auto-collected
+  (`auto_em` / `auto_pn`) hashed identifiers as advanced-matching / auto-match indicators —
+  this beacon is the only place the Reddit Pixel sends user data.
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, in order, with event
