@@ -90,8 +90,15 @@
     .ctl-links { display: inline-flex; gap: 4px; align-items: center; color: var(--text-fainter); }
     .ctl-links a { color: var(--text-muted); cursor: pointer; text-decoration: none; border-bottom: 1px dotted var(--text-fainter); }
     .ctl-links a:hover { color: var(--primary); border-bottom-color: var(--primary); }
-    /* "follow" (auto-scroll) toggle sits apart from the provider checkboxes */
+    /* "follow" (auto-scroll) toggle sits apart from the provider filter pills */
     .ctl-follow { color: var(--text-muted); white-space: nowrap; padding-left: 6px; border-left: 1px solid var(--border); }
+    /* Filter pills ("out" side): compact toggles built only for enabled/seen
+       services, so the bar carries no chip for a service you never record. */
+    #fltPills { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+    .flt-pill { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-muted); cursor: pointer; user-select: none; }
+    .flt-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .flt-pill:hover { border-color: var(--primary); }
+    .flt-group[hidden] { display: none; }
     .settings { background: var(--surface-alt); }
     #filterText { flex: 1; min-width: 100px; font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-family: inherit; }
     #filterText:focus { outline: none; border-color: var(--primary); }
@@ -200,17 +207,11 @@
       <span class="ctl-hint">which services are captured (applies to new hits)</span>
     </div>
     <div class="ctl-row filterbar">
-      <span class="ctl-label">Show</span>
-      <span class="ctl-links"><a id="fltAll" role="button" tabindex="0">all</a> · <a id="fltNone" role="button" tabindex="0">none</a></span>
-      <label><input type="checkbox" data-flt="ga4" checked> GA4</label>
-      <label><input type="checkbox" data-flt="googleads" checked> Google Ads</label>
-      <label><input type="checkbox" data-flt="meta" checked> Meta</label>
-      <label><input type="checkbox" data-flt="uet" checked> Bing</label>
-      <label><input type="checkbox" data-flt="tiktok" checked> TikTok</label>
-      <label><input type="checkbox" data-flt="pinterest" checked> Pinterest</label>
-      <label><input type="checkbox" data-flt="linkedin" checked> LinkedIn</label>
-      <label><input type="checkbox" data-flt="reddit" checked> Reddit</label>
-      <label><input type="checkbox" data-flt="snapchat" checked> Snapchat</label>
+      <span id="fltGroup" class="flt-group">
+        <span class="ctl-label">Show</span>
+        <span class="ctl-links"><a id="fltAll" role="button" tabindex="0">all</a> · <a id="fltNone" role="button" tabindex="0">none</a></span>
+        <span id="fltPills"></span>
+      </span>
       <label class="ctl-follow" title="Keep the newest events in view while recording"><input type="checkbox" id="autoScroll" checked> ⤓ follow</label>
       <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>

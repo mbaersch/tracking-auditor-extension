@@ -41,8 +41,14 @@ const state = {
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
   record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true },           // capture switches (the "in" side)
   filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, text: '' }, // display filter (the "out" side)
+  seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   autoScroll: true,                                       // "follow": keep the newest events in view while recording
 };
+
+// Filter pills are built from this order; only enabled or already-seen services
+// get a pill, so the bar carries nothing for a service you never record.
+const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -829,6 +835,7 @@ function appendEventDom(block, r) {
   });
   block._eventsEl.appendChild(card);
   r._el = card;
+  if (r.provider && !state.seen.has(r.provider)) { state.seen.add(r.provider); renderFilterBar(); }   // ensure a pill exists for this service
   applyCardVisibility(r);
 }
 
@@ -955,7 +962,9 @@ recordBtn.addEventListener('click', () => setRecording(!state.recording));
 
 clearBtn.addEventListener('click', () => {
   state.blocks = [];
+  state.seen.clear();
   blocksEl.innerHTML = '';
+  renderFilterBar();                                       // drop pills for services that were only present via cleared cards
   renderStatus();
 });
 
@@ -1012,6 +1021,7 @@ exportBtn.addEventListener('click', () => {
 function loadCapture(data) {
   state.recording = false;
   state.blocks = [];
+  state.seen.clear();
   blocksEl.innerHTML = '';
   for (const b of data.blocks) {
     const block = { navUrl: b.navUrl, navTime: b.navTime, events: [] };
@@ -1022,6 +1032,7 @@ function loadCapture(data) {
       appendEventDom(block, r);
     }
   }
+  renderFilterBar();                                       // reflect the imported services' pills (also clears stale ones)
   renderStatus();
 }
 
@@ -1054,26 +1065,54 @@ settingsBtn.addEventListener('click', () => {
   settingsBtn.classList.toggle('active', !settingsEl.hidden);
 });
 for (const cb of document.querySelectorAll('input[data-rec]')) {
-  cb.addEventListener('change', () => { state.record[cb.dataset.rec] = cb.checked; saveSettings(); });
+  cb.addEventListener('change', () => { state.record[cb.dataset.rec] = cb.checked; renderFilterBar(); saveSettings(); });
 }
 
 // Display filter ("out"): independent of capture — hides cards without dropping
-// the captured data, so unchecking and re-checking brings them straight back.
-for (const cb of document.querySelectorAll('input[data-flt]')) {
-  cb.addEventListener('change', () => { state.filter[cb.dataset.flt] = cb.checked; applyFilter(); saveSettings(); });
+// the captured data, so toggling a pill off and on brings them straight back.
+// The pills are built dynamically for the services that are enabled for capture
+// PLUS any already recorded in the current session (so imported captures and
+// since-disabled services stay filterable). A service you never record gets no
+// pill at all.
+const fltGroup = document.getElementById('fltGroup');
+const fltPills = document.getElementById('fltPills');
+
+// Which services deserve a filter pill right now: enabled for capture, or already
+// seen in the current blocks (import / recorded-then-disabled).
+function filterProviders() {
+  return PROVIDER_ORDER.filter(p => state.record[p] || state.seen.has(p));
 }
+
+function renderFilterBar() {
+  const providers = filterProviders();
+  fltGroup.hidden = providers.length === 0;
+  fltPills.innerHTML = providers.map(p => {
+    const active = state.filter[p] !== false;
+    return `<span class="flt-pill ${active ? 'active' : ''}" data-flt="${escapeHtml(p)}" role="button" tabindex="0" aria-pressed="${active}">${escapeHtml(PROVIDER_LABEL[p] || p)}</span>`;
+  }).join('');
+  for (const pill of fltPills.querySelectorAll('.flt-pill')) {
+    const toggle = () => {
+      const p = pill.dataset.flt;
+      state.filter[p] = state.filter[p] === false;   // flip
+      renderFilterBar();
+      applyFilter();
+      saveSettings();
+    };
+    pill.addEventListener('click', toggle);
+    pill.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  }
+}
+
 document.getElementById('filterText').addEventListener('input', (e) => {
   state.filter.text = e.target.value;
   applyFilter();
 });
 
-// Bulk "all / none" for the Show row — one gesture instead of ticking each
-// provider as the list grows. Drives the same state + checkboxes as a manual toggle.
+// Bulk "all / none" for the Show row — one gesture instead of toggling each
+// provider as the list grows. Only touches the services that currently have a pill.
 function setAllFilters(on) {
-  for (const cb of document.querySelectorAll('input[data-flt]')) {
-    cb.checked = on;
-    state.filter[cb.dataset.flt] = on;
-  }
+  for (const p of filterProviders()) state.filter[p] = on;
+  renderFilterBar();
   applyFilter();
   saveSettings();
 }
@@ -1109,16 +1148,18 @@ function saveSettings() {
 function loadSettings() {
   chrome.storage.local.get(SETTINGS_KEY, (data) => {
     const saved = data && data[SETTINGS_KEY];
-    if (!saved) return;
-    if (saved.record) Object.assign(state.record, saved.record);
-    if (saved.filter) Object.assign(state.filter, saved.filter);
-    if (typeof saved.autoScroll === 'boolean') state.autoScroll = saved.autoScroll;
-    for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
-    for (const cb of document.querySelectorAll('input[data-flt]')) cb.checked = !!state.filter[cb.dataset.flt];
-    autoScrollCb.checked = state.autoScroll;
+    if (saved) {
+      if (saved.record) Object.assign(state.record, saved.record);
+      if (saved.filter) Object.assign(state.filter, saved.filter);
+      if (typeof saved.autoScroll === 'boolean') state.autoScroll = saved.autoScroll;
+      for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
+      autoScrollCb.checked = state.autoScroll;
+    }
+    renderFilterBar();                                     // pills reflect the persisted record/filter state
     applyFilter();
   });
 }
 
+renderFilterBar();                                         // initial pills before storage resolves (default: all enabled)
 loadSettings();
 renderStatus();
