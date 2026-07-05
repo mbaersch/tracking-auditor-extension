@@ -91,6 +91,10 @@ async function renderPanel(context, base, colorScheme) {
 
 function promoHtml(iconDataUri, w, h) {
   const s = h / 280;   // scale type/icon to the tile height
+  // The small tile (440px) can't fit nine chips without overflowing under the
+  // three-line tagline, so it leans on the tagline alone to name the services;
+  // the marquee is wide enough for both.
+  const showChips = w >= 600;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;height:100%;}
     .tile{width:${w}px;height:${h}px;display:flex;flex-direction:column;align-items:center;
@@ -107,8 +111,8 @@ function promoHtml(iconDataUri, w, h) {
       border-radius:${999 * s}px;padding:${4 * s}px ${12 * s}px;}
   </style></head><body><div class="tile">
     <div class="logo"><img src="${iconDataUri}"><div class="name">Tracking <b>Auditor</b></div></div>
-    <div class="tag">Every GA4, Meta, Bing, TikTok, Pinterest, Google Ads and LinkedIn hit of the inspected tab — decoded live in DevTools.</div>
-    <div class="chips"><span class="chip">GA4</span><span class="chip">Meta</span><span class="chip">Bing</span><span class="chip">TikTok</span><span class="chip">Pinterest</span><span class="chip">Google Ads</span><span class="chip">LinkedIn</span></div>
+    <div class="tag">Every GA4, Google Ads, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit and Snapchat hit of the inspected tab — decoded live in DevTools.</div>
+    ${showChips ? '<div class="chips"><span class="chip">GA4</span><span class="chip">Google Ads</span><span class="chip">Meta</span><span class="chip">Bing</span><span class="chip">TikTok</span><span class="chip">Pinterest</span><span class="chip">LinkedIn</span><span class="chip">Reddit</span><span class="chip">Snapchat</span></div>' : ''}
   </div></body></html>`;
 }
 
