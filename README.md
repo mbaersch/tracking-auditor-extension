@@ -1,4 +1,7 @@
 # Tracking Auditor Extension
+
+![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, LinkedIn, Reddit and Snapchat hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
+
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
 **TikTok**, **Pinterest**, **Google Ads**, **LinkedIn**, **Reddit** and **Snapchat**
 requests of the inspected tab — including transports that common debuggers miss:
@@ -87,9 +90,11 @@ page reloads and every hit is listed in blocks per navigation, in order, with ev
 name, parameters, a user-data summary and (where present) the consent state decoded.
 A collapsible
 **Record** settings row switches services on/off (capture), and an independent
-**Show** filter row (service checkboxes + fulltext) narrows the displayed log —
-with **all / none** shortcuts to focus on a single service quickly and a **⤓ follow**
-toggle that keeps the newest hits in view while recording.
+**Show** filter row (service pills + fulltext) narrows the displayed log — the
+pills cover only the services you actually record, so the bar carries no toggle
+for a service you never capture — with **all / none** shortcuts to focus on a
+single service quickly and a **⤓ follow** toggle that keeps the newest hits in
+view while recording.
 
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
@@ -108,6 +113,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 5. Pin the extension if you want it in the toolbar
 
 ## Changelog
+
+### 0.7.1
+- **Show** filter row reworked from fixed checkboxes to compact toggle **pills**, built only for the services you actually record (or that already appear in the current/imported capture) — no toggle for a service you never capture.
 
 ### 0.7.0
 - Added the **Reddit Pixel** provider (`alb.reddit.com/rp.gif`): event, conversion data (`m.*`), and both manual (`em`/`pn`/`external_id`) and auto-collected (`auto_em`/`auto_pn`) hashed identifiers.
