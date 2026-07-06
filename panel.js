@@ -10,6 +10,7 @@ import { parseGoogleAdsRequest } from './lib/googleads.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
+import { isServiceWorkerPhantom } from './lib/har.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -882,6 +883,10 @@ function parseRequest(url, postData) {
 
 function onRequest(harEntry) {
   if (!state.recording) return;
+  // A service worker (e.g. Cloudflare) that intercepts the page's fetch leaves a
+  // phantom entry that never hit the network; the SW's real outgoing request is
+  // captured separately. Drop the phantom so one logical hit counts once.
+  if (isServiceWorkerPhantom(harEntry)) return;
   const req = harEntry && harEntry.request;
   if (!req || !req.url) return;
   const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
