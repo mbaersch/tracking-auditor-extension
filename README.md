@@ -114,7 +114,7 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
-### Unreleased
+### 0.7.2
 - **Service-worker de-duplication**: when a service worker (e.g. Cloudflare Zaraz) intercepts a page's `fetch()`, DevTools surfaces the hit twice — the aborted page-side request that never reached the network, plus the worker's real outgoing request. The aborted phantom (network error and no server connection) is now dropped, so each logical hit counts once.
 
 ### 0.7.1

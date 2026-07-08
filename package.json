@@ -1,6 +1,6 @@
 {
   "name": "tracking-auditor-extension",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "DevTools extension that records GA4, Meta Pixel, Bing UET, TikTok Pixel, Pinterest Tag, Google Ads, LinkedIn Insight Tag, Reddit Pixel and Snapchat Pixel requests of the inspected tab, including custom-loader, base64-encoded and first-party transports.",
   "private": true,
   "type": "module",
