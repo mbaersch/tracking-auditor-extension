@@ -2,7 +2,7 @@
 // DevTools network API and renders them in blocks per navigation. Each request is
 // offered to every provider parser (GA4, Meta); the first that claims it wins.
 import { parseGa4Request } from './lib/ga4.js';
-import { parseMetaRequest } from './lib/meta.js';
+import { parseMetaRequest, parseMetaSignal } from './lib/meta.js';
 import { parseUetRequest } from './lib/uet.js';
 import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
@@ -79,7 +79,7 @@ function formatTime(d) {
 
 // Provider-agnostic accessors.
 function eventName(r) {
-  if (r.provider === 'meta')   return r.ev;
+  if (r.provider === 'meta')   return r.signalType === 'config-no-event' ? 'pixel initialised — no event' : r.ev;
   if (r.provider === 'uet')    return r.eventName;
   if (r.provider === 'tiktok') return r.event;
   if (r.provider === 'pinterest') return r.event;
@@ -185,6 +185,9 @@ function flagPills(r) {
   const out = [];
   if (r.provider === 'meta') {
     const f = r.flags || {};
+    if (r.signalType === 'config-no-event') {
+      return '<span class="pill pill-consent-denied" title="Pixel init (signals/config) seen but no /tr/ event fired within 2s — likely Meta traffic-permission settings">no event sent</span>';
+    }
     if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a Meta standard event)">custom event</span>');
     if (f.dedup)          out.push('<span class="pill pill-event" title="eid present — event ID for CAPI deduplication">dedup</span>');
     if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom-data field(s): cd[...]">cd ×${f.cdCount}</span>`);
@@ -399,6 +402,23 @@ function metaUserDataSection(userData) {
 
 function detailHtml(r) {
   let meta, extras = '';
+
+  if (r.provider === 'meta' && r.signalType === 'config-no-event') {
+    meta = [
+      ['pixel id (id)', r.id],
+      ['domain', r.domain],
+      ['CAPI opt-in', r.capiOptin ? 'yes (optin_meta_enabled_capi)' : 'no'],
+      ['pixel version (v)', r.version],
+    ].filter(([, v]) => v != null && v !== '');
+    const help = 'https://www.facebook.com/business/help/572690630080597';
+    extras = section('Why this card',
+      `<div class="det-note">The pixel fetched its config (signals/config) but sent no event ` +
+      `(no PageView/conversion) within 2&nbsp;s. The most common cause is the pixel's ` +
+      `traffic-permission settings blocking this domain — see ` +
+      `<a href="${escapeHtml(help)}" target="_blank" rel="noopener">Meta&nbsp;Help</a>. ` +
+      `Other possible causes: the event was never triggered, or consent was not granted.</div>`);
+    return `<div class="ev-detail" hidden>${kvTable(meta)}${extras}</div>`;
+  }
 
   if (r.provider === 'meta') {
     meta = [
@@ -892,6 +912,13 @@ function onRequest(harEntry) {
   const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   const r = parseRequest(req.url, req.postData);
   if (r) { commitRecord(currentBlock(), r, req, ts); return; }
+  // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
+  // tracking event, so no parser claims it. When Meta recording is on, register
+  // it and arm the 2s "did an event follow?" check.
+  if (state.record.meta) {
+    const sig = parseMetaSignal(req.url);
+    if (sig) { registerMetaSignal(currentBlock(), sig, ts); return; }
+  }
   // Async side-path: the LinkedIn /wa/ POST is base64(gzip(JSON)) and needs an
   // async DecompressionStream, so it can't ride the synchronous parser registry.
   // onRequestFinished listeners are fire-and-forget, so awaiting here is safe; the
@@ -910,6 +937,9 @@ function commitRecord(block, r, req, ts) {
   r._originalUrl = req.url;
   r._ts = ts;
   r._search = buildSearchText(r);
+  // A real Meta /tr/ event clears any pending / shown silent-pixel warning for
+  // its pixel id (before the collapse return, so it always registers).
+  if (r.provider === 'meta' && r.id) markMetaFired(block, r.id);
   // Generic transport-collapse: records carrying a _collapseKey fold every
   // transport mirror / duplicate fire of one logical hit into a single card.
   if (r._collapseKey) {
@@ -942,6 +972,74 @@ function mergeTransport(existing, incoming) {
   rerenderCard(existing);
 }
 
+// --- silent Meta pixel (absence diagnosis) ---------------------------------
+// A pixel fetches signals/config on init but sends no /tr/ event. We arm a timer
+// per pixel id when its config is seen; if no matching event fires within the
+// window, we emit one synthetic warning card. A late event self-heals the card.
+const SILENT_PIXEL_DELAY_MS = 2000;
+
+function registerMetaSignal(block, sig, ts) {
+  const map = block._metaSignals || (block._metaSignals = new Map());
+  if (map.has(sig.id)) return;                                    // one config per pixel per load
+  if (block._metaFired && block._metaFired.has(sig.id)) return;   // event already fired first
+  const entry = { ...sig, ts, timer: null, warnEl: null, record: null };
+  map.set(sig.id, entry);
+  entry.timer = setTimeout(() => { entry.timer = null; emitSilentPixelCard(block, entry); }, SILENT_PIXEL_DELAY_MS);
+}
+
+function markMetaFired(block, id) {
+  (block._metaFired || (block._metaFired = new Set())).add(id);
+  const entry = block._metaSignals && block._metaSignals.get(id);
+  if (!entry) return;
+  if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
+  if (entry.warnEl) {                                             // late event → drop the warning
+    const idx = block.events.indexOf(entry.record);
+    if (idx >= 0) block.events.splice(idx, 1);
+    entry.warnEl.remove();
+    entry.warnEl = null;
+    entry.record = null;
+    renderStatus();
+  }
+}
+
+function emitSilentPixelCard(block, entry) {
+  if (block._metaFired && block._metaFired.has(entry.id)) return; // fired in the meantime
+  if (entry.warnEl) return;
+  const r = {
+    provider: 'meta', signalType: 'config-no-event', transport: 'signal',
+    id: entry.id, domain: entry.domain, capiOptin: entry.capiOptin, version: entry.version,
+    method: 'GET', host: 'connect.facebook.net',
+    queryParams: { id: entry.id, domain: entry.domain || '' },
+    _ts: entry.ts,
+  };
+  r._search = buildSearchText(r);
+  block.events.push(r);
+  appendEventDom(block, r);
+  entry.record = r;
+  entry.warnEl = r._el;
+  renderStatus();
+  maybeAutoScroll();
+}
+
+function forEachMetaSignal(fn) {
+  for (const block of state.blocks) {
+    if (!block._metaSignals) continue;
+    for (const entry of block._metaSignals.values()) fn(block, entry);
+  }
+}
+
+// Stop: decide pending pixels now instead of leaving a timer to fire post-stop.
+function flushMetaSignalTimers() {
+  forEachMetaSignal((block, entry) => {
+    if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; emitSilentPixelCard(block, entry); }
+  });
+}
+
+// Clear / import: cancel pending timers before the blocks they reference are dropped.
+function clearMetaSignalTimers() {
+  forEachMetaSignal((block, entry) => { if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; } });
+}
+
 function onNavigated(url) {
   if (!state.recording) return;
   startBlock(url);
@@ -961,11 +1059,13 @@ function setRecording(on) {
   // first block and we capture from the very first hit — no empty initial block
   // and no manual reload needed.
   if (on) chrome.devtools.inspectedWindow.reload();
+  else flushMetaSignalTimers();                            // decide any pending silent pixels now
 }
 
 recordBtn.addEventListener('click', () => setRecording(!state.recording));
 
 clearBtn.addEventListener('click', () => {
+  clearMetaSignalTimers();                                 // cancel timers before their blocks vanish
   state.blocks = [];
   state.seen.clear();
   blocksEl.innerHTML = '';
@@ -1024,6 +1124,7 @@ exportBtn.addEventListener('click', () => {
 // the current blocks are replaced; the active display filter still applies, so
 // the imported cards honor the Show toggles just like live ones.
 function loadCapture(data) {
+  clearMetaSignalTimers();                                 // cancel timers before their blocks vanish
   state.recording = false;
   state.blocks = [];
   state.seen.clear();

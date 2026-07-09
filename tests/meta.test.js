@@ -5,6 +5,8 @@ import {
   extractMetaUserData,
   summarizeMetaIdentifiers,
   parseMetaConsent,
+  parseMetaSignal,
+  metaUnfiredPixelIds,
 } from '../lib/meta.js';
 
 // Real Meta Lead request captured on atomkraftwerke24.de (Markus' playground).
@@ -99,6 +101,33 @@ test('the fbevents.js loader and non-pixel facebook URLs are ignored', () => {
   assert.equal(parseMetaRequest('https://connect.facebook.net/en_US/fbevents.js', null), null);
   assert.equal(parseMetaRequest('https://www.facebook.com/somepage?id=123', null), null);
   assert.equal(parseMetaRequest('https://www.facebook.com/tr/?ev=PageView', null), null); // no id
+});
+
+// Real pixel-init config fetch captured on erp.heizungsdiscount24.de — the pixel
+// initialises but is blocked from sending events ("traffic permission" settings).
+const SIGNAL_URL = 'https://connect.facebook.net/signals/config/549591473162841?v=2.9.349&r=stable&domain=erp.heizungsdiscount24.de&optin_meta_enabled_capi=true&hme=f29d86973612db0f0627890a64bdc8c47b471189050b33f2680b7d76997afc9a&ex_m=107%2C208';
+
+test('parseMetaSignal reads the pixel-init config fetch', () => {
+  const s = parseMetaSignal(SIGNAL_URL);
+  assert.ok(s, 'should be recognised as a pixel-init signal');
+  assert.equal(s.id, '549591473162841');
+  assert.equal(s.domain, 'erp.heizungsdiscount24.de');
+  assert.equal(s.capiOptin, true);
+  assert.equal(s.version, '2.9.349');
+});
+
+test('parseMetaSignal ignores /tr events, the loader and unrelated URLs', () => {
+  assert.equal(parseMetaSignal('https://www.facebook.com/tr/?id=123&ev=PageView'), null);
+  assert.equal(parseMetaSignal('https://connect.facebook.net/en_US/fbevents.js'), null);
+  assert.equal(parseMetaSignal('https://connect.facebook.net/signals/config/'), null); // no id
+  assert.equal(parseMetaSignal('https://example.com/signals/config/123'), null);       // wrong host
+});
+
+test('metaUnfiredPixelIds returns config ids that never fired an event', () => {
+  assert.deepEqual(metaUnfiredPixelIds(['123', '456'], ['456']), ['123']);
+  assert.deepEqual(metaUnfiredPixelIds(['123', '123'], new Set()), ['123']); // dedupes
+  assert.deepEqual(metaUnfiredPixelIds(['123'], ['123']), []);
+  assert.deepEqual(metaUnfiredPixelIds([], ['123']), []);
 });
 
 test('extractMetaUserData / summarize work standalone', () => {
