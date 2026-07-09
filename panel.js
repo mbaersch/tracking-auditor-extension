@@ -10,7 +10,7 @@ import { parseGoogleAdsRequest } from './lib/googleads.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
-import { isServiceWorkerPhantom } from './lib/har.js';
+import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -44,6 +44,7 @@ const state = {
   filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   autoScroll: true,                                       // "follow": keep the newest events in view while recording
+  swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
 };
 
 // Filter pills are built from this order; only enabled or already-seen services
@@ -940,6 +941,9 @@ function onRequest(harEntry) {
   const req = harEntry && harEntry.request;
   if (!req || !req.url) return;
   const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
+  // Environmental signal (not a tracking hit): a first-party Tag Gateway service
+  // worker. Flag it so the user knows some hits may be dispatched invisibly.
+  if (isTagGatewaySwIframe(req.url)) { showSwNotice(currentBlock()); return; }
   const r = parseRequest(req.url, req.postData);
   if (r) { commitRecord(currentBlock(), r, req, ts); return; }
   // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
@@ -1068,6 +1072,33 @@ function flushMetaSignalTimers() {
 // Clear / import: cancel pending timers before the blocks they reference are dropped.
 function clearMetaSignalTimers() {
   forEachMetaSignal((block, entry) => { if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; } });
+}
+
+// --- service-worker notice (environmental warning) -------------------------
+// A compact, per-block strip (not a card, so it stays out of the filter / export
+// / event counter) warning that a first-party Tag Gateway service worker is
+// active. "mute for session" hides it and any siblings until the panel reloads.
+function showSwNotice(block) {
+  if (state.swNoticeMuted || block._swNoticeEl) return;
+  const el = document.createElement('div');
+  el.className = 'blk-notice';
+  el.innerHTML =
+    `<span class="blk-notice-icon" aria-hidden="true">⚠</span>` +
+    `<span class="blk-notice-text">Service worker active (first-party tag delivery) — hits may be dispatched from the worker and stay invisible to DevTools / this panel.</span>` +
+    `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`;
+  const mute = () => { state.swNoticeMuted = true; removeAllSwNotices(); };
+  const a = el.querySelector('.blk-notice-mute');
+  a.addEventListener('click', mute);
+  a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mute(); } });
+  block._eventsEl.insertBefore(el, block._eventsEl.firstChild);   // sit above this block's cards
+  block._swNoticeEl = el;
+  maybeAutoScroll();
+}
+
+function removeAllSwNotices() {
+  for (const b of state.blocks) {
+    if (b._swNoticeEl) { b._swNoticeEl.remove(); b._swNoticeEl = null; }
+  }
 }
 
 function onNavigated(url) {

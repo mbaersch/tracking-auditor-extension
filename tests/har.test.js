@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isServiceWorkerPhantom } from '../lib/har.js';
+import { isServiceWorkerPhantom, isTagGatewaySwIframe } from '../lib/har.js';
 
 // Shapes derived from cloudflare-sw.har: a page fires GA4 hits while a Cloudflare
 // service worker intercepts each fetch, so every hit shows up twice in DevTools —
@@ -63,4 +63,16 @@ test('filtering the full cloudflare-sw capture collapses 7 entries to 4 events',
 test('missing/empty entry is handled gracefully', () => {
   assert.equal(isServiceWorkerPhantom(null), false);
   assert.equal(isServiceWorkerPhantom({}), false);
+});
+
+test('Tag Gateway service-worker iframe loader is detected', () => {
+  // Real shape captured on atomkraftwerke24.de.
+  assert.equal(isTagGatewaySwIframe(
+    'https://data.atomkraftwerke24.de/_/service_worker/66u0/sw_iframe.html?origin=https%3A%2F%2Fatomkraftwerke24.de&1p=1'), true);
+});
+
+test('ordinary tracking / asset requests are not the SW loader', () => {
+  assert.equal(isTagGatewaySwIframe('https://data.atomkraftwerke24.de/g/collect?v=2&en=view_item'), false);
+  assert.equal(isTagGatewaySwIframe('https://example.com/service_worker/sw.js'), false); // not the iframe html
+  assert.equal(isTagGatewaySwIframe('not a url'), false);
 });

@@ -115,6 +115,10 @@
     .blk-head { font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px; color: var(--text-strong); padding: 6px 8px; background: var(--surface-alt); border-radius: 6px; border-left: 3px solid var(--secondary); word-break: break-all; }
     .blk-head .blk-time { color: var(--text-faint); margin-right: 8px; }
     .blk-events { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .blk-notice { display: flex; align-items: baseline; gap: 6px; font-size: 11px; line-height: 1.4; color: var(--text-strong); background: var(--surface-warm); border-left: 3px solid var(--danger-text); border-radius: 4px; padding: 4px 8px; }
+    .blk-notice-icon { color: var(--danger-text); font-weight: 700; }
+    .blk-notice-text { flex: 1; }
+    .blk-notice-mute { color: var(--primary); cursor: pointer; white-space: nowrap; text-decoration: underline; }
 
     /* Event cards — tinted per provider so a mixed stream scans easily: GA4 amber,
        Google Ads peach (a second Google warm), Meta blue, Bing teal, TikTok fuchsia,
