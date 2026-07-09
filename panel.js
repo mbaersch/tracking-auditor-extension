@@ -841,9 +841,15 @@ function cardInnerHtml(r) {
     ${detailHtml(r)}`;
 }
 
+// Card element classes: provider + transport, plus ev-alert for the synthetic
+// silent-pixel warning so its title can be flagged in red.
+function cardClass(r) {
+  return `ev p-${r.provider} t-${r.transport}${r.signalType === 'config-no-event' ? ' ev-alert' : ''}`;
+}
+
 function appendEventDom(block, r) {
   const card = document.createElement('div');
-  card.className = `ev p-${r.provider} t-${r.transport}`;
+  card.className = cardClass(r);
   card.innerHTML = cardInnerHtml(r);
   card.addEventListener('click', (e) => {
     if (e.target.closest('.ev-detail')) return;   // let users select/copy in the table
@@ -865,7 +871,7 @@ function appendEventDom(block, r) {
 // click listener are kept; only the inner markup is rebuilt.
 function rerenderCard(r) {
   if (!r._el) return;
-  r._el.className = `ev p-${r.provider} t-${r.transport}`;
+  r._el.className = cardClass(r);
   r._el.innerHTML = cardInnerHtml(r);
   applyCardVisibility(r);
 }
