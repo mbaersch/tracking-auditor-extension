@@ -1108,7 +1108,7 @@ function paintSwNotice(el) {
       `<a class="blk-notice-act" role="button" tabindex="0">enable Deep Capture</a>` +
       `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`;
   bindNoticeAction(el.querySelector('.blk-notice-mute'), () => { state.swNoticeMuted = true; removeAllSwNotices(); });
-  if (!deep) bindNoticeAction(el.querySelector('.blk-notice-act'), enableDeepCaptureFromNotice);
+  if (!deep) bindNoticeAction(el.querySelector('.blk-notice-act'), requestDeepCapture);
 }
 
 function bindNoticeAction(a, fn) {
@@ -1117,14 +1117,26 @@ function bindNoticeAction(a, fn) {
   a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
 }
 
-// Turn Deep Capture on straight from the notice, sync the settings checkbox, open
-// the port, and repaint every visible strip to the green all-clear.
-function enableDeepCaptureFromNotice() {
+// Enable Deep Capture. The <all_urls> host permission is optional and requested here,
+// at the user gesture that turns the feature on (the settings toggle or the notice
+// link — both count as a gesture). We only switch on if it's granted; a denial reverts
+// the checkbox so the stored state never claims a capture we can't perform. Shared by
+// the toggle and the notice link.
+async function requestDeepCapture() {
+  let granted = false;
+  try { granted = await chrome.permissions.request({ origins: ['<all_urls>'] }); }
+  catch (e) { granted = false; }   // e.g. not treated as a user gesture in this context
+  if (!granted) {
+    state.deepCapture = false;
+    deepCaptureCb.checked = false;
+    saveSettings();
+    return;
+  }
   state.deepCapture = true;
   deepCaptureCb.checked = true;
   connectDeepCapture();
   saveSettings();
-  for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);
+  for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);   // flip strips to the green all-clear
 }
 
 function removeAllSwNotices() {
@@ -1389,10 +1401,13 @@ bindLink('fltNone', () => setAllFilters(false));
 
 const deepCaptureCb = document.getElementById('deepCapture');
 deepCaptureCb.addEventListener('change', () => {
-  state.deepCapture = deepCaptureCb.checked;
-  if (state.deepCapture) connectDeepCapture();           // open the port lazily on first enable
-  for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);  // flip any visible SW notice
-  saveSettings();
+  if (deepCaptureCb.checked) {
+    requestDeepCapture();                                 // grant-gated; reverts the box if the permission is denied
+  } else {
+    state.deepCapture = false;
+    for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);  // flip strips back to the warning
+    saveSettings();
+  }
 });
 
 // --- settings persistence --------------------------------------------------
@@ -1416,8 +1431,18 @@ function loadSettings() {
       if (saved.filter) Object.assign(state.filter, saved.filter);
       if (typeof saved.deepCapture === 'boolean') state.deepCapture = saved.deepCapture;
       for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
-      deepCaptureCb.checked = state.deepCapture;
-      if (state.deepCapture) connectDeepCapture();          // restore the port if it was left enabled
+      // Restore Deep Capture only if the optional host permission is still held — the
+      // user may have revoked it in chrome://extensions since last session.
+      if (state.deepCapture) {
+        chrome.permissions.contains({ origins: ['<all_urls>'] }, (has) => {
+          state.deepCapture = has;
+          deepCaptureCb.checked = has;
+          if (has) connectDeepCapture();
+          else saveSettings();                             // persist the corrected off-state
+        });
+      } else {
+        deepCaptureCb.checked = false;
+      }
     }
     renderFilterBar();                                     // pills reflect the persisted record/filter state
     applyFilter();

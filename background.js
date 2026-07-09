@@ -62,17 +62,36 @@ function toEvent(details) {
   };
 }
 
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    if (!ports.size) return;                 // no panel listening — nothing to relay
-    const event = toEvent(details);
-    if (details.tabId >= 0) { relay(details.tabId, event); return; }
-    // No tab association — likely a worker-dispatched hit. Fan out to all panels.
-    for (const tabId of ports.keys()) relay(tabId, event);
-  },
-  { urls: ['<all_urls>'] },
-  ['requestBody']
-);
+function onBeforeRequest(details) {
+  if (!ports.size) return;                 // no panel listening — nothing to relay
+  const event = toEvent(details);
+  if (details.tabId >= 0) { relay(details.tabId, event); return; }
+  // No tab association — likely a worker-dispatched hit. Fan out to all panels.
+  for (const tabId of ports.keys()) relay(tabId, event);
+}
+
+// The <all_urls> host permission is optional and requested at runtime when the user
+// enables Deep Capture (see panel.js). webRequest delivers nothing without it, so we
+// only attach the listener while the permission is actually held — and (de)attach it
+// live as the user grants or revokes it.
+const HOST = { origins: ['<all_urls>'] };
+let listening = false;
+
+function syncListener() {
+  chrome.permissions.contains(HOST, (has) => {
+    if (has && !listening) {
+      chrome.webRequest.onBeforeRequest.addListener(onBeforeRequest, { urls: ['<all_urls>'] }, ['requestBody']);
+      listening = true;
+    } else if (!has && listening) {
+      chrome.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
+      listening = false;
+    }
+  });
+}
+
+chrome.permissions.onAdded.addListener(syncListener);
+chrome.permissions.onRemoved.addListener(syncListener);
+syncListener();   // on service-worker startup: attach if the permission is already held
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'auditor-panel') return;

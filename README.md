@@ -103,7 +103,8 @@ and dispatch their hits from the worker's own scope, where the page-scoped DevTo
 network never sees them. Enabling **Deep Capture** (⚙ → Advanced) adds a second
 observer via `chrome.webRequest` that catches those hits, de-duplicates them against
 the normal feed and flags the worker-only ones with a **⚡ service worker** badge. It
-is **off by default** and requires a broad host permission, so it is opt-in.
+is **off by default**; the broad host permission it needs is requested only when you
+switch it on, so nothing is granted at install unless you actually use it.
 
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
@@ -124,7 +125,7 @@ If you want to modify the extension or run an unreleased version, load it unpack
 ## Changelog
 
 ### 0.9.0
-- **Deep Capture (service-worker / edge hits)**: an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and (as found in testing) Bing UET — which the page-scoped DevTools network feed never sees. These hits are de-duplicated against the DevTools feed (only what DevTools missed is ingested) and marked with a **⚡ service worker** badge, which the fulltext filter also matches. Off by default; enabling it needs a broad host permission (declared in the manifest). The service-worker notice now carries an **"enable Deep Capture"** link and flips to a green all-clear once on.
+- **Deep Capture (service-worker / edge hits)**: an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and (as found in testing) Bing UET — which the page-scoped DevTools network feed never sees. These hits are de-duplicated against the DevTools feed (only what DevTools missed is ingested) and marked with a **⚡ service worker** badge, which the fulltext filter also matches. Off by default; the broad host permission is **optional** and requested at the moment you switch it on (from the toggle or the notice link), so nothing broad is granted at install. The service-worker notice now carries an **"enable Deep Capture"** link and flips to a green all-clear once on.
 - **Newest-first ordering**: new hits and page-load blocks are inserted at the top instead of the bottom, so the freshest hit stays in view and Chrome's scroll anchoring keeps whatever you're reading in place. The **⤓ follow** auto-scroll toggle is removed as redundant.
 - **Meta silent-pixel warning**: a pixel can initialise (its `signals/config` fetch fires) yet send no `/tr/` event — a silent tracking failure, typically caused by Meta's traffic-permission settings. When Meta recording is on, a 2-second timer per pixel id is armed on the config fetch; if no matching event follows, a single warning card is shown (a late event self-heals it). Network inference only, no new permissions.
 - **GA4 e-commerce items**: the tilde-packed `pr1..prN` product params are decoded into readable fields (item_id, item_name, brand, category1–5, variant, price, quantity, coupon, discount, index, list, promotion, creative, location) plus item-scoped custom `k<n>/v<n>` pairs. Unknown codes are surfaced, never dropped. Rendered as one sub-table per product with an "items ×N" pill.

@@ -5,7 +5,7 @@
   "description": "Records GA4, Google Ads and other marketing pixel requests in DevTools.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "webRequest"],
-  "host_permissions": ["<all_urls>"],
+  "optional_host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "icons": {
     "16": "icon-16.png",
