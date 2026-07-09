@@ -43,7 +43,6 @@ const state = {
   record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true },           // capture switches (the "in" side)
   filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
-  autoScroll: true,                                       // "follow": keep the newest events in view while recording
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
 };
@@ -63,15 +62,6 @@ function escapeHtml(s) {
 
 function totalEvents() {
   return state.blocks.reduce((n, b) => n + b.events.length, 0);
-}
-
-// "Follow" the stream: keep the panel pinned to the bottom so new hits scroll
-// into view on their own. Only used on the live-capture path (import doesn't
-// jump). The DevTools panel scrolls the document itself.
-function maybeAutoScroll() {
-  if (!state.autoScroll) return;
-  const el = document.scrollingElement || document.documentElement;
-  el.scrollTop = el.scrollHeight;
 }
 
 function formatTime(d) {
@@ -824,7 +814,7 @@ function appendBlockDom(block) {
   const events = document.createElement('div');
   events.className = 'blk-events';
   el.append(head, events);
-  blocksEl.appendChild(el);
+  blocksEl.insertBefore(el, blocksEl.firstChild);   // newest page-load block on top
   block._el = el;
   block._headEl = head;
   block._eventsEl = events;
@@ -887,7 +877,9 @@ function appendEventDom(block, r) {
       if (caret) { caret.textContent = det.hidden ? '▼' : '▲'; caret.title = det.hidden ? 'Show all parameters' : 'Hide parameters'; }
     }
   });
-  block._eventsEl.appendChild(card);
+  // Newest event on top; keep any SW notice pinned above the cards.
+  const anchor = block._swNoticeEl ? block._swNoticeEl.nextSibling : block._eventsEl.firstChild;
+  block._eventsEl.insertBefore(card, anchor);
   r._el = card;
   if (r.provider && !state.seen.has(r.provider)) { state.seen.add(r.provider); renderFilterBar(); }   // ensure a pill exists for this service
   applyCardVisibility(r);
@@ -1001,7 +993,6 @@ function commitRecord(block, r, req, ts) {
   block.events.push(r);
   appendEventDom(block, r);
   renderStatus();
-  maybeAutoScroll();
 }
 
 // Fold an incoming mirror into an already-displayed record: grow its transport
@@ -1067,7 +1058,6 @@ function emitSilentPixelCard(block, entry) {
   entry.record = r;
   entry.warnEl = r._el;
   renderStatus();
-  maybeAutoScroll();
 }
 
 function forEachMetaSignal(fn) {
@@ -1100,7 +1090,6 @@ function showSwNotice(block) {
   block._eventsEl.insertBefore(el, block._eventsEl.firstChild);   // sit above this block's cards
   block._swNoticeEl = el;
   paintSwNotice(el);
-  maybeAutoScroll();
 }
 
 // Render a SW-notice strip for the current Deep Capture state, so the same strip
@@ -1147,7 +1136,6 @@ function onNavigated(url) {
   if (!state.recording) return;
   startBlock(url);
   renderStatus();
-  maybeAutoScroll();
 }
 
 chrome.devtools.network.onRequestFinished.addListener(onRequest);
@@ -1195,7 +1183,6 @@ function onWebRequestEvent(msg) {
     // DevTools never claimed it within the window → an invisible worker/edge hit.
     ingestRequest({ url: msg.url, method: msg.method, postData: { text: msg.postData || '' } }, ts, 'worker');
     renderStatus();
-    maybeAutoScroll();
   }, DEDUP_WINDOW_MS);
   pendingWr.set(key, timer);
 }
@@ -1399,14 +1386,6 @@ function bindLink(id, fn) {
 bindLink('fltAll', () => setAllFilters(true));
 bindLink('fltNone', () => setAllFilters(false));
 
-// "Follow" toggle: auto-scroll to the newest events while recording.
-const autoScrollCb = document.getElementById('autoScroll');
-autoScrollCb.addEventListener('change', () => {
-  state.autoScroll = autoScrollCb.checked;
-  saveSettings();
-  maybeAutoScroll();                                     // jump to the bottom the moment it's re-enabled
-});
-
 const deepCaptureCb = document.getElementById('deepCapture');
 deepCaptureCb.addEventListener('change', () => {
   state.deepCapture = deepCaptureCb.checked;
@@ -1424,7 +1403,7 @@ const SETTINGS_KEY = 'trackingAuditorSettings';
 
 function saveSettings() {
   const { text, ...filterToggles } = state.filter;
-  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, autoScroll: state.autoScroll, deepCapture: state.deepCapture } });
+  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, deepCapture: state.deepCapture } });
 }
 
 // Pull persisted toggles into state, then sync the checkboxes to match.
@@ -1434,10 +1413,8 @@ function loadSettings() {
     if (saved) {
       if (saved.record) Object.assign(state.record, saved.record);
       if (saved.filter) Object.assign(state.filter, saved.filter);
-      if (typeof saved.autoScroll === 'boolean') state.autoScroll = saved.autoScroll;
       if (typeof saved.deepCapture === 'boolean') state.deepCapture = saved.deepCapture;
       for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
-      autoScrollCb.checked = state.autoScroll;
       deepCaptureCb.checked = state.deepCapture;
       if (state.deepCapture) connectDeepCapture();          // restore the port if it was left enabled
     }

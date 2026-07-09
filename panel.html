@@ -90,8 +90,6 @@
     .ctl-links { display: inline-flex; gap: 4px; align-items: center; color: var(--text-fainter); }
     .ctl-links a { color: var(--text-muted); cursor: pointer; text-decoration: none; border-bottom: 1px dotted var(--text-fainter); }
     .ctl-links a:hover { color: var(--primary); border-bottom-color: var(--primary); }
-    /* "follow" (auto-scroll) toggle sits apart from the provider filter pills */
-    .ctl-follow { color: var(--text-muted); white-space: nowrap; padding-left: 6px; border-left: 1px solid var(--border); }
     /* Filter pills ("out" side): compact toggles built only for enabled/seen
        services, so the bar carries no chip for a service you never record. */
     #fltPills { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -213,19 +211,25 @@
       <input type="file" id="importFile" accept="application/json,.json" hidden>
       <span class="rec-status"><span class="rec-dot" id="recDot"></span><span id="recCount">0 events / 0 pages</span></span>
     </div>
-    <div id="settings" class="ctl-row settings" hidden>
-      <span class="ctl-label">Record</span>
-      <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
-      <label><input type="checkbox" data-rec="googleads" checked> Google Ads</label>
-      <label><input type="checkbox" data-rec="meta" checked> Meta</label>
-      <label><input type="checkbox" data-rec="uet" checked> Bing</label>
-      <label><input type="checkbox" data-rec="tiktok" checked> TikTok</label>
-      <label><input type="checkbox" data-rec="pinterest" checked> Pinterest</label>
-      <label><input type="checkbox" data-rec="linkedin" checked> LinkedIn</label>
-      <label><input type="checkbox" data-rec="reddit" checked> Reddit</label>
-      <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
-      <span class="ctl-hint">which services are captured (applies to new hits)</span>
-      <label class="ctl-deep" title="Experimental: also observe requests via webRequest to catch hits dispatched from a service worker / cloud edge that the DevTools network panel never sees. Adds a broad host permission."><input type="checkbox" id="deepCapture"> 🔬 Deep Capture (SW/Edge)</label>
+    <div id="settings" class="settings" hidden>
+      <div class="ctl-row">
+        <span class="ctl-label">Record</span>
+        <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
+        <label><input type="checkbox" data-rec="googleads" checked> Google Ads</label>
+        <label><input type="checkbox" data-rec="meta" checked> Meta</label>
+        <label><input type="checkbox" data-rec="uet" checked> Bing</label>
+        <label><input type="checkbox" data-rec="tiktok" checked> TikTok</label>
+        <label><input type="checkbox" data-rec="pinterest" checked> Pinterest</label>
+        <label><input type="checkbox" data-rec="linkedin" checked> LinkedIn</label>
+        <label><input type="checkbox" data-rec="reddit" checked> Reddit</label>
+        <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
+        <span class="ctl-hint">which services are captured (applies to new hits)</span>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-label">Advanced</span>
+        <label class="ctl-deep" title="Experimental: also observe requests via webRequest to catch hits dispatched from a service worker / cloud edge that the DevTools network panel never sees."><input type="checkbox" id="deepCapture"> 🔬 Deep Capture (SW/Edge)</label>
+        <span class="ctl-hint">also captures hits fired from a service worker / cloud edge — needs a broad host permission</span>
+      </div>
     </div>
     <div class="ctl-row filterbar">
       <span id="fltGroup" class="flt-group">
@@ -233,7 +237,6 @@
         <span class="ctl-links"><a id="fltAll" role="button" tabindex="0">all</a> · <a id="fltNone" role="button" tabindex="0">none</a></span>
         <span id="fltPills"></span>
       </span>
-      <label class="ctl-follow" title="Keep the newest events in view while recording"><input type="checkbox" id="autoScroll" checked> ⤓ follow</label>
       <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>
   </header>
