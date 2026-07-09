@@ -45,6 +45,7 @@ const state = {
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   autoScroll: true,                                       // "follow": keep the newest events in view while recording
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
+  deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
 };
 
 // Filter pills are built from this order; only enabled or already-seen services
@@ -857,6 +858,7 @@ function cardInnerHtml(r) {
       <span class="ev-time">${escapeHtml(formatTime(new Date(r._ts)))}</span>
       <span class="ev-method">${escapeHtml(r.method)}</span>
       ${idChip ? `<span class="ev-tid" title="${escapeHtml(idTitle)}">${escapeHtml(idChip)}</span>` : ''}
+      ${r._source === 'worker' ? '<span class="ev-src" title="Deep Capture: seen only via webRequest, not the DevTools network panel — dispatched from a service worker / cloud edge">⚡ SW</span>' : ''}
       <span class="ev-caret" title="Show all parameters">▼</span>
     </div>
     <div class="ev-name">${escapeHtml(eventName(r) || '(no event name)')}</div>
@@ -941,11 +943,24 @@ function onRequest(harEntry) {
   const req = harEntry && harEntry.request;
   if (!req || !req.url) return;
   const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
+  // Deep Capture dedup: remember that DevTools saw this hit (and drop any pending
+  // webRequest copy of it). A hit both sources see is shown once — via DevTools,
+  // the richer feed. See noteDevtoolsSeen / the webRequest port handler below.
+  noteDevtoolsSeen(req.method, req.url);
+  ingestRequest({ url: req.url, method: req.method, postData: req.postData }, ts, 'devtools');
+}
+
+// Shared processing core for a single request, fed by both capture sources: the
+// DevTools network feed (source 'devtools') and the webRequest fallback that
+// catches worker-dispatched hits (source 'worker'). req is { url, method, postData }
+// where postData is a HAR-style {text} object or a plain string — extractParams
+// accepts either.
+function ingestRequest(req, ts, source) {
   // Environmental signal (not a tracking hit): a first-party Tag Gateway service
   // worker. Flag it so the user knows some hits may be dispatched invisibly.
   if (isTagGatewaySwIframe(req.url)) { showSwNotice(currentBlock()); return; }
   const r = parseRequest(req.url, req.postData);
-  if (r) { commitRecord(currentBlock(), r, req, ts); return; }
+  if (r) { r._source = source; commitRecord(currentBlock(), r, req, ts); return; }
   // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
   // tracking event, so no parser claims it. When Meta recording is on, register
   // it and arm the 2s "did an event follow?" check.
@@ -959,7 +974,7 @@ function onRequest(harEntry) {
   // block is resolved when the decode settles (it takes ~ms).
   if (state.record.linkedin && isLinkedInWaRequest(req.url)) {
     parseLinkedInWaRequest(req.url, req.postData)
-      .then(rec => { if (rec) commitRecord(currentBlock(), rec, req, ts); })
+      .then(rec => { if (rec) { rec._source = source; commitRecord(currentBlock(), rec, req, ts); } })
       .catch(() => {});
   }
 }
@@ -1082,17 +1097,44 @@ function showSwNotice(block) {
   if (state.swNoticeMuted || block._swNoticeEl) return;
   const el = document.createElement('div');
   el.className = 'blk-notice';
-  el.innerHTML =
-    `<span class="blk-notice-icon" aria-hidden="true">⚠</span>` +
-    `<span class="blk-notice-text">Service worker active (first-party tag delivery) — hits may be dispatched from the worker and stay invisible to DevTools / this panel.</span>` +
-    `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`;
-  const mute = () => { state.swNoticeMuted = true; removeAllSwNotices(); };
-  const a = el.querySelector('.blk-notice-mute');
-  a.addEventListener('click', mute);
-  a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mute(); } });
   block._eventsEl.insertBefore(el, block._eventsEl.firstChild);   // sit above this block's cards
   block._swNoticeEl = el;
+  paintSwNotice(el);
   maybeAutoScroll();
+}
+
+// Render a SW-notice strip for the current Deep Capture state, so the same strip
+// flips between two messages: an amber warning with an "enable Deep Capture" link
+// while capture is off, and a green all-clear once it's on.
+function paintSwNotice(el) {
+  const deep = state.deepCapture;
+  el.classList.toggle('blk-notice-ok', deep);
+  el.innerHTML = deep
+    ? `<span class="blk-notice-icon" aria-hidden="true">✓</span>` +
+      `<span class="blk-notice-text">Service worker active (first-party tag delivery) — Deep Capture is on, so worker-dispatched hits are captured (marked ⚡ SW).</span>` +
+      `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`
+    : `<span class="blk-notice-icon" aria-hidden="true">⚠</span>` +
+      `<span class="blk-notice-text">Service worker active (first-party tag delivery) — hits may be dispatched from the worker and stay invisible to DevTools / this panel.</span>` +
+      `<a class="blk-notice-act" role="button" tabindex="0">enable Deep Capture</a>` +
+      `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`;
+  bindNoticeAction(el.querySelector('.blk-notice-mute'), () => { state.swNoticeMuted = true; removeAllSwNotices(); });
+  if (!deep) bindNoticeAction(el.querySelector('.blk-notice-act'), enableDeepCaptureFromNotice);
+}
+
+function bindNoticeAction(a, fn) {
+  if (!a) return;
+  a.addEventListener('click', fn);
+  a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+}
+
+// Turn Deep Capture on straight from the notice, sync the settings checkbox, open
+// the port, and repaint every visible strip to the green all-clear.
+function enableDeepCaptureFromNotice() {
+  state.deepCapture = true;
+  deepCaptureCb.checked = true;
+  connectDeepCapture();
+  saveSettings();
+  for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);
 }
 
 function removeAllSwNotices() {
@@ -1110,6 +1152,72 @@ function onNavigated(url) {
 
 chrome.devtools.network.onRequestFinished.addListener(onRequest);
 chrome.devtools.network.onNavigated.addListener(onNavigated);
+
+// --- Deep Capture (Spike): webRequest fallback source ----------------------
+// A background worker relays every webRequest of the inspected tab here (see
+// background.js). Most are duplicates of what the DevTools feed already delivered;
+// we only want the ones DevTools never sees — hits fired from a service worker /
+// edge scope. Strategy: DevTools is authoritative. When a webRequest event arrives
+// we hold it briefly; if the DevTools feed reports the same hit within the window
+// we drop the webRequest copy, otherwise we ingest it as a 'worker' hit.
+//
+// Timing works in our favour: webRequest onBeforeRequest fires at request *start*,
+// DevTools onRequestFinished at *completion* — so for a hit both sources see, the
+// pending webRequest copy is still waiting when DevTools cancels it. A hit only the
+// worker fires simply never gets cancelled and surfaces after the window.
+const DEDUP_WINDOW_MS = 5000;
+const devtoolsSeen = new Map();   // reqKey -> expiry timestamp (ms)
+const pendingWr = new Map();      // reqKey -> timeout id
+
+function reqKey(method, url) { return (method || 'GET') + ' ' + url; }
+
+function noteDevtoolsSeen(method, url) {
+  const key = reqKey(method, url);
+  devtoolsSeen.set(key, Date.now() + DEDUP_WINDOW_MS);
+  const pending = pendingWr.get(key);
+  if (pending != null) { clearTimeout(pending); pendingWr.delete(key); }  // DevTools covers it — drop the webRequest copy
+}
+
+function onWebRequestEvent(msg) {
+  if (!state.deepCapture || !state.recording) return;
+  if (!msg || msg.kind !== 'wr-request' || !msg.url) return;
+  const key = reqKey(msg.method, msg.url);
+  const seenExpiry = devtoolsSeen.get(key);
+  if (seenExpiry != null) {
+    if (seenExpiry > Date.now()) return;                  // DevTools already delivered this hit
+    devtoolsSeen.delete(key);                             // stale entry — let it fall through
+  }
+  if (pendingWr.has(key)) return;                         // already awaiting a verdict for this key
+  const ts = msg.ts || Date.now();
+  const timer = setTimeout(() => {
+    pendingWr.delete(key);
+    if (!state.deepCapture || !state.recording) return;
+    // DevTools never claimed it within the window → an invisible worker/edge hit.
+    ingestRequest({ url: msg.url, method: msg.method, postData: { text: msg.postData || '' } }, ts, 'worker');
+    renderStatus();
+    maybeAutoScroll();
+  }, DEDUP_WINDOW_MS);
+  pendingWr.set(key, timer);
+}
+
+// Periodically drop expired dedup markers so the map can't grow unbounded across a
+// long recording session.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, expiry] of devtoolsSeen) if (expiry <= now) devtoolsSeen.delete(key);
+}, DEDUP_WINDOW_MS * 4);
+
+let wrPort = null;
+function connectDeepCapture() {
+  if (wrPort) return;
+  const tabId = chrome.devtools.inspectedWindow.tabId;
+  try {
+    wrPort = chrome.runtime.connect({ name: 'auditor-panel' });
+    wrPort.postMessage({ type: 'init', tabId });
+    wrPort.onMessage.addListener(onWebRequestEvent);
+    wrPort.onDisconnect.addListener(() => { wrPort = null; });  // background worker recycled — reconnect lazily on next enable
+  } catch (e) { wrPort = null; }
+}
 
 // --- controls --------------------------------------------------------------
 
@@ -1299,6 +1407,14 @@ autoScrollCb.addEventListener('change', () => {
   maybeAutoScroll();                                     // jump to the bottom the moment it's re-enabled
 });
 
+const deepCaptureCb = document.getElementById('deepCapture');
+deepCaptureCb.addEventListener('change', () => {
+  state.deepCapture = deepCaptureCb.checked;
+  if (state.deepCapture) connectDeepCapture();           // open the port lazily on first enable
+  for (const b of state.blocks) if (b._swNoticeEl) paintSwNotice(b._swNoticeEl);  // flip any visible SW notice
+  saveSettings();
+});
+
 // --- settings persistence --------------------------------------------------
 // Record toggles and filter toggles are scoped to the extension (chrome.storage),
 // not the inspected tab — so they survive closing DevTools and switching tabs.
@@ -1308,7 +1424,7 @@ const SETTINGS_KEY = 'trackingAuditorSettings';
 
 function saveSettings() {
   const { text, ...filterToggles } = state.filter;
-  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, autoScroll: state.autoScroll } });
+  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, autoScroll: state.autoScroll, deepCapture: state.deepCapture } });
 }
 
 // Pull persisted toggles into state, then sync the checkboxes to match.
@@ -1319,8 +1435,11 @@ function loadSettings() {
       if (saved.record) Object.assign(state.record, saved.record);
       if (saved.filter) Object.assign(state.filter, saved.filter);
       if (typeof saved.autoScroll === 'boolean') state.autoScroll = saved.autoScroll;
+      if (typeof saved.deepCapture === 'boolean') state.deepCapture = saved.deepCapture;
       for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
       autoScrollCb.checked = state.autoScroll;
+      deepCaptureCb.checked = state.deepCapture;
+      if (state.deepCapture) connectDeepCapture();          // restore the port if it was left enabled
     }
     renderFilterBar();                                     // pills reflect the persisted record/filter state
     applyFilter();

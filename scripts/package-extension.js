@@ -24,6 +24,7 @@ const files = [
   'devtools.js',
   'panel.html',
   'panel.js',
+  'background.js',
   'icon-16.png', 'icon-32.png', 'icon-48.png', 'icon-128.png',
   ...readdirSync(join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => `lib/${f}`),
 ];
