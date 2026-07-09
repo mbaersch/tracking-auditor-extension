@@ -114,6 +114,11 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
+### Unreleased
+- **Meta silent-pixel warning**: a pixel can initialise (its `signals/config` fetch fires) yet send no `/tr/` event — a silent tracking failure, typically caused by Meta's traffic-permission settings. When Meta recording is on, a 2-second timer per pixel id is armed on the config fetch; if no matching event follows, a single warning card is shown (a late event self-heals it). Network inference only, no new permissions.
+- **GA4 e-commerce items**: the tilde-packed `pr1..prN` product params are decoded into readable fields (item_id, item_name, brand, category1–5, variant, price, quantity, coupon, discount, index, list, promotion, creative, location) plus item-scoped custom `k<n>/v<n>` pairs. Unknown codes are surfaced, never dropped. Rendered as one sub-table per product with an "items ×N" pill.
+- **Service-worker notice**: detects the Google Tag Gateway first-party service-worker loader (`sw_iframe.html`) and shows a compact per-block strip — hits may be dispatched from the worker and stay invisible to the page-scoped DevTools network. UI-only (not a card), with a "mute for session" link.
+
 ### 0.7.2
 - **Service-worker de-duplication**: when a service worker (e.g. Cloudflare Zaraz) intercepts a page's `fetch()`, DevTools surfaces the hit twice — the aborted page-side request that never reached the network, plus the worker's real outgoing request. The aborted phantom (network error and no server connection) is now dropped, so each logical hit counts once.
 

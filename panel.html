@@ -119,6 +119,12 @@
     .blk-notice-icon { color: var(--danger-text); font-weight: 700; }
     .blk-notice-text { flex: 1; }
     .blk-notice-mute { color: var(--primary); cursor: pointer; white-space: nowrap; text-decoration: underline; }
+    @media (prefers-color-scheme: dark) {
+      /* --surface-warm is too close to the panel bg in dark; lift to a legible amber. */
+      .blk-notice { background: rgba(251, 191, 36, 0.16); color: var(--text); border-left-color: #fbbf24; }
+      .blk-notice-icon { color: #fbbf24; }
+      .blk-notice-mute { color: #fdba74; }
+    }
 
     /* Event cards — tinted per provider so a mixed stream scans easily: GA4 amber,
        Google Ads peach (a second Google warm), Meta blue, Bing teal, TikTok fuchsia,
