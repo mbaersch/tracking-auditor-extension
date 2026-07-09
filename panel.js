@@ -763,6 +763,7 @@ function detailHtml(r) {
 
 function buildSearchText(r) {
   const bits = [r.provider, eventName(r), accountId(r), r.host, docLocation(r)];
+  if (r._source === 'worker') bits.push('service worker');   // matches the ⚡ badge label in free-text search
   if (r.provider === 'googleads') {
     // Mirror the manual "filter the network tab by AW-xxxxx / bare xxxxx / label" workflow.
     bits.push(r.convId, r.label, r.signalType);
@@ -848,7 +849,7 @@ function cardInnerHtml(r) {
       <span class="ev-time">${escapeHtml(formatTime(new Date(r._ts)))}</span>
       <span class="ev-method">${escapeHtml(r.method)}</span>
       ${idChip ? `<span class="ev-tid" title="${escapeHtml(idTitle)}">${escapeHtml(idChip)}</span>` : ''}
-      ${r._source === 'worker' ? '<span class="ev-src" title="Deep Capture: seen only via webRequest, not the DevTools network panel — dispatched from a service worker / cloud edge">⚡ SW</span>' : ''}
+      ${r._source === 'worker' ? '<span class="ev-src" title="Deep Capture: seen only via webRequest, not the DevTools network panel — dispatched from a service worker / cloud edge">⚡ service worker</span>' : ''}
       <span class="ev-caret" title="Show all parameters">▼</span>
     </div>
     <div class="ev-name">${escapeHtml(eventName(r) || '(no event name)')}</div>
