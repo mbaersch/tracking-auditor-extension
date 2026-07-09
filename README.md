@@ -86,15 +86,24 @@ Snapchat Pixel:
   postal, region) and age**, which Snapchat also hashes — as advanced-matching indicators.
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
-page reloads and every hit is listed in blocks per navigation, in order, with event
-name, parameters, a user-data summary and (where present) the consent state decoded.
-A collapsible
-**Record** settings row switches services on/off (capture), and an independent
+page reloads and every hit is listed in blocks per navigation, **newest first**, with
+event name, parameters, a user-data summary and (where present) the consent state
+decoded. New hits appear at the top, so the freshest is always in view and whatever
+you are reading stays put. A collapsible
+**Record** settings row switches services on/off (capture) and holds an **Advanced**
+row with the optional **Deep Capture** mode, and an independent
 **Show** filter row (service pills + fulltext) narrows the displayed log — the
 pills cover only the services you actually record, so the bar carries no toggle
 for a service you never capture — with **all / none** shortcuts to focus on a
-single service quickly and a **⤓ follow** toggle that keeps the newest hits in
-view while recording.
+single service quickly.
+
+**Deep Capture (optional).** Some first-party setups deliver tags through a
+**service worker** — Google Tag Gateway, a Cloudflare/edge worker, or Bing UET —
+and dispatch their hits from the worker's own scope, where the page-scoped DevTools
+network never sees them. Enabling **Deep Capture** (⚙ → Advanced) adds a second
+observer via `chrome.webRequest` that catches those hits, de-duplicates them against
+the normal feed and flags the worker-only ones with a **⚡ service worker** badge. It
+is **off by default** and requires a broad host permission, so it is opt-in.
 
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
@@ -114,7 +123,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
-### Unreleased
+### 0.9.0
+- **Deep Capture (service-worker / edge hits)**: an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and (as found in testing) Bing UET — which the page-scoped DevTools network feed never sees. These hits are de-duplicated against the DevTools feed (only what DevTools missed is ingested) and marked with a **⚡ service worker** badge, which the fulltext filter also matches. Off by default; enabling it needs a broad host permission (declared in the manifest). The service-worker notice now carries an **"enable Deep Capture"** link and flips to a green all-clear once on.
+- **Newest-first ordering**: new hits and page-load blocks are inserted at the top instead of the bottom, so the freshest hit stays in view and Chrome's scroll anchoring keeps whatever you're reading in place. The **⤓ follow** auto-scroll toggle is removed as redundant.
 - **Meta silent-pixel warning**: a pixel can initialise (its `signals/config` fetch fires) yet send no `/tr/` event — a silent tracking failure, typically caused by Meta's traffic-permission settings. When Meta recording is on, a 2-second timer per pixel id is armed on the config fetch; if no matching event follows, a single warning card is shown (a late event self-heals it). Network inference only, no new permissions.
 - **GA4 e-commerce items**: the tilde-packed `pr1..prN` product params are decoded into readable fields (item_id, item_name, brand, category1–5, variant, price, quantity, coupon, discount, index, list, promotion, creative, location) plus item-scoped custom `k<n>/v<n>` pairs. Unknown codes are surfaced, never dropped. Rendered as one sub-table per product with an "items ×N" pill.
 - **Service-worker notice**: detects the Google Tag Gateway first-party service-worker loader (`sw_iframe.html`) and shows a compact per-block strip — hits may be dispatched from the worker and stay invisible to the page-scoped DevTools network. UI-only (not a card), with a "mute for session" link.

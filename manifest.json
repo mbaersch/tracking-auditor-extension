@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tracking Auditor",
-  "version": "0.7.2",
+  "version": "0.9.0",
   "description": "Records GA4, Google Ads and other marketing pixel requests in DevTools.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "webRequest"],
