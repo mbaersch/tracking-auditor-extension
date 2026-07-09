@@ -292,6 +292,7 @@ function flagPills(r) {
   if (f.externalEvent) out.push('<span class="pill pill-ee" title="_ee=1 — external event (created via GA4 configuration)">external</span>');
   if (f.sessionStart)  out.push('<span class="pill pill-event" title="_ss=1 — session start">session start</span>');
   if (f.firstVisit)    out.push('<span class="pill pill-event" title="_fv=1 — first visit">first visit</span>');
+  if (f.itemCount)     out.push(`<span class="pill pill-event" title="${f.itemCount} e-commerce item(s) in the pr1..prN payload">items ×${f.itemCount}</span>`);
   if (f.epCount)       out.push(`<span class="pill pill-ep" title="${f.epCount} custom event parameter(s): ep.* / epn.*">ep ×${f.epCount}</span>`);
   return out.join('');
 }
@@ -398,6 +399,25 @@ function metaUserDataSection(userData) {
     return `<tr><td>${escapeHtml(f.label)}</td><td>${escapeHtml(shape)}${escapeHtml(note)}</td></tr>`;
   });
   return section('user data (advanced matching)', `<table class="det-table">${rows.join('')}</table>`);
+}
+
+// GA4 e-commerce items (pr1..prN): one readable sub-table per product. Custom
+// item params and any unknown codes are shown too, so nothing the request
+// carried is hidden.
+function ga4ItemsSection(items, currency) {
+  if (!Array.isArray(items) || !items.length) return '';
+  const cur = currency ? ` ${currency}` : '';
+  return items.map((it, i) => {
+    const rows = [];
+    for (const [label, val] of Object.entries(it.fields)) {
+      const shown = (label === 'price' && val) ? `${val}${cur}` : val;
+      rows.push([label, shown]);
+    }
+    for (const [k, v] of Object.entries(it.custom)) rows.push([`custom: ${k}`, v]);
+    for (const [code, v] of Object.entries(it.unknown)) rows.push([`? unknown (${code})`, v]);
+    const name = it.fields.item_name || it.fields.item_id || `item ${i + 1}`;
+    return section(`item ${i + 1}: ${name}`, kvTable(rows));
+  }).join('');
 }
 
 function detailHtml(r) {
@@ -715,10 +735,14 @@ function detailHtml(r) {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],
       ['transport', r.transport], ['method', r.method],
+      ['currency (cu)', r.currency],
       ['request url', r.effectiveUrl],
       ['original (masked) url', r._originalUrl && r._originalUrl !== r.effectiveUrl ? r._originalUrl : null],
     ].filter(([, v]) => v != null && v !== '');
 
+    if (r.items && r.items.length) {
+      extras += section(`e-commerce items (${r.items.length})`, ga4ItemsSection(r.items, r.currency));
+    }
     if (r.consent) {
       const rows = [];
       if (r.consent.gcs) rows.push(['gcs', r.consent.gcs]);

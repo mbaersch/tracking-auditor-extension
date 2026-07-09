@@ -7,6 +7,8 @@ import {
   parseConsent,
   extractUserData,
   extractParams,
+  parseGa4ProductItem,
+  parseGa4Products,
 } from '../lib/ga4.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64');
@@ -127,4 +129,68 @@ test('extractParams keeps JSON body accessible', () => {
   assert.ok(bodyJson);
   assert.equal(bodyJson.en, 'x');
   assert.ok(extractUserData({}, bodyParams, bodyJson));
+});
+
+// --- e-commerce items (pr1..prN) -------------------------------------------
+
+// Real, fully-loaded pr1 decoded from a view_item on atomkraftwerke24.de. Carries
+// every standard item field plus two item-scoped custom params (k0/v0, k1/v1).
+const PR1 = 'idca528821~nmCaleffi Sicherheitsgruppe SiCalCenter®, 1/2" 10 bar, 12 Liter~afOnline Store DE~cpITEM-CPN-1~ds5~lp0~brCaleffi~caHeizung~c2Sicherheitstechnik~c3Sicherheitsgruppen~c4Kategorie4~c5Kategorie5~lirelated_products~lnÄhnliche Produkte~va1/2 Zoll~loChIJ-DE-Store-001~pr76.9~qt1~piPROMO-SOMMER~pnSommeraktion 2026~cnhero_banner~csfeatured_1~k0test_ci_color~v0messing~k1test_ci_material~v1Rotguss & Messing';
+
+test('parseGa4ProductItem decodes every standard field code', () => {
+  const it = parseGa4ProductItem(PR1);
+  assert.equal(it.fields.item_id, 'ca528821');
+  assert.equal(it.fields.item_name, 'Caleffi Sicherheitsgruppe SiCalCenter®, 1/2" 10 bar, 12 Liter');
+  assert.equal(it.fields.affiliation, 'Online Store DE');
+  assert.equal(it.fields.coupon, 'ITEM-CPN-1');
+  assert.equal(it.fields.discount, '5');
+  assert.equal(it.fields.index, '0');
+  assert.equal(it.fields.item_brand, 'Caleffi');
+  assert.equal(it.fields.item_category, 'Heizung');
+  assert.equal(it.fields.item_category2, 'Sicherheitstechnik');
+  assert.equal(it.fields.item_category5, 'Kategorie5');
+  assert.equal(it.fields.item_list_id, 'related_products');
+  assert.equal(it.fields.item_list_name, 'Ähnliche Produkte');
+  assert.equal(it.fields.item_variant, '1/2 Zoll');    // 'va' not mis-read as custom value
+  assert.equal(it.fields.location_id, 'ChIJ-DE-Store-001');
+  assert.equal(it.fields.price, '76.9');
+  assert.equal(it.fields.quantity, '1');
+  assert.equal(it.fields.promotion_id, 'PROMO-SOMMER');
+  assert.equal(it.fields.promotion_name, 'Sommeraktion 2026');
+  assert.equal(it.fields.creative_name, 'hero_banner');
+  assert.equal(it.fields.creative_slot, 'featured_1');
+});
+
+test('parseGa4ProductItem pairs k<n>/v<n> custom params and surfaces unknowns', () => {
+  const it = parseGa4ProductItem(PR1);
+  assert.deepEqual(it.custom, { test_ci_color: 'messing', test_ci_material: 'Rotguss & Messing' });
+  assert.deepEqual(it.unknown, {});
+  // an unrecognised 2-char code is kept, never dropped
+  const u = parseGa4ProductItem('idX~zz99');
+  assert.equal(u.fields.item_id, 'X');
+  assert.deepEqual(u.unknown, { zz: '99' });
+});
+
+test('parseGa4Products collects pr1..prN in numeric order', () => {
+  const items = parseGa4Products({ pr2: 'idB~pr2', pr1: 'idA~pr1', en: 'view_item' }, null);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].fields.item_id, 'A');
+  assert.equal(items[1].fields.item_id, 'B');
+  assert.equal(parseGa4Products({ en: 'page_view' }, null), null);
+});
+
+// Real, fully URL-encoded view_cart hit — exercises the whole path incl. decoding.
+const VIEW_CART_URL = 'https://region1.analytics.google.com/g/collect?v=2&tid=G-6JRL4ZVK1J&_p=1783588249526&en=view_cart&cu=EUR&pr1=idca528821~nmCaleffi%20Sicherheitsgruppe%20SiCalCenter%C2%AE%2C%201%2F2%22%2010%20bar%2C%2012%20Liter~afOnline%20Store%20DE~cpITEM-CPN-1~ds5~lp0~brCaleffi~caHeizung~c2Sicherheitstechnik~c3Sicherheitsgruppen~c4Kategorie4~c5Kategorie5~lirelated_products~ln%C3%84hnliche%20Produkte~va1%2F2%20Zoll~loChIJ-DE-Store-001~pr76.9~qt1~piPROMO-SOMMER~pnSommeraktion%202026~cnhero_banner~csfeatured_1~k0test_ci_color~v0messing~k1test_ci_material~v1Rotguss%20%26%20Messing&pr2=idrxekhhe200cv37~nmDaikin%20Altherma%20M%20HW%20200%2C%20Warmwasser-W%C3%A4rmepumpe%20200L~brDaikin~caW%C3%A4rmepumpen~va200%20Liter~pr1745~qt1~lp1~k0test_ci_color~v0wei%C3%9F~k1test_ci_material~v1Stahl&ep.transaction_id=T-DEBUG-0001&epn.value=1821.9';
+
+test('parseGa4Request surfaces decoded items end-to-end', () => {
+  const r = parseGa4Request(VIEW_CART_URL, null);
+  assert.ok(r);
+  assert.equal(r.en, 'view_cart');
+  assert.equal(r.currency, 'EUR');
+  assert.equal(r.flags.itemCount, 2);
+  assert.equal(r.items.length, 2);
+  assert.equal(r.items[0].fields.item_name, 'Caleffi Sicherheitsgruppe SiCalCenter®, 1/2" 10 bar, 12 Liter');
+  assert.equal(r.items[0].custom.test_ci_material, 'Rotguss & Messing');   // %26 → & decoded
+  assert.equal(r.items[1].fields.item_name, 'Daikin Altherma M HW 200, Warmwasser-Wärmepumpe 200L');
+  assert.equal(r.items[1].custom.test_ci_color, 'weiß');                   // %C3%9F → ß decoded
 });
