@@ -9,6 +9,7 @@ import {
   extractParams,
   parseGa4ProductItem,
   parseGa4Products,
+  ga4PiiFields,
 } from '../lib/ga4.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64');
@@ -80,6 +81,31 @@ test('user_data summary from JSON body with arrays', () => {
   const r = parseGa4Request('https://sgtm.example.com/g/collect?v=2&tid=G-X&en=purchase', body);
   assert.ok(r.userData);
   assert.deepEqual(r.identifiers, { email: 2, phone: 1, name: 1, address: 1 });
+});
+
+test('ga4PiiFields: structured user_data flattened to category + hash form', () => {
+  const sha = 'a'.repeat(64);
+  const ud = { sha256_email_address: sha, phone_number: '+491701234567' };
+  const fields = ga4PiiFields(ud, null);
+  assert.equal(fields.sha256_email_address.label, 'Email');
+  assert.equal(fields.sha256_email_address.algo, 'sha256');
+  // A cleartext phone reports no hash form — stated plainly, not alarmed.
+  assert.equal(fields.phone_number.label, 'Phone');
+  assert.equal(fields.phone_number.algo, null);
+  assert.equal(fields.phone_number.hashed, false);
+});
+
+test('ga4PiiFields: em token contributes fields too', () => {
+  const sha = 'b'.repeat(64);
+  const fields = ga4PiiFields(null, `tv.1~em.${sha}~fn0.${sha}`);
+  assert.equal(fields.em.label, 'Email');
+  assert.equal(fields.em.algo, 'sha256');
+  assert.equal(fields.fn0.label, 'First name');
+});
+
+test('ga4PiiFields: null when no identifiers', () => {
+  assert.equal(ga4PiiFields(null, null), null);
+  assert.equal(ga4PiiFields({ non_identifier: 'x' }, ''), null);
 });
 
 test('identifier summary from em tokens', () => {

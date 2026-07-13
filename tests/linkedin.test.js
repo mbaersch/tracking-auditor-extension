@@ -124,7 +124,8 @@ test('real /wa/ CLICK: hem present → email identifier + PII flag', async () =>
   assert.equal(r.hem, '8d9b70fd20e23919cfe664ea5e571db39d72ba1bf17bf57e909ada24be9aa3aa');
   assert.equal(r.identifiers.email, 1);
   assert.equal(r.flags.hashedEmail, true);
-  assert.ok(r.userData && r.userData.email && r.userData.email.hashed === true);
+  assert.ok(r.userData && r.userData.hem && r.userData.hem.hashed === true);
+  assert.equal(r.userData.hem.algo, 'sha256');
   assert.equal(r.waPayload.domAttributes.innerText, 'Absenden');
   assert.equal(r.waPayload.domAttributes.isFormSubmission, true);
   assert.equal(r._collapseKey, 'li-wa:465b5ae1-4213-c38b-d548-6c98d71b7a1e');
