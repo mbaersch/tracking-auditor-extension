@@ -1,10 +1,11 @@
 # Tracking Auditor Extension
 
-![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, LinkedIn, Reddit and Snapchat hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
+![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, LinkedIn, Reddit, Snapchat and HubSpot hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
 
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
-**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn**, **Reddit** and **Snapchat**
-requests of the inspected tab — including transports that common debuggers miss:
+**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn**, **Reddit**, **Snapchat**
+and **HubSpot** requests of the inspected tab — including transports that common
+debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -85,6 +86,18 @@ Snapchat Pixel:
 - Surfaces the full hashed identifier set — email, phone, name, **and geo (city, country,
   postal, region) and age**, which Snapchat also hashes — as advanced-matching indicators.
 
+HubSpot:
+- Tracking-code beacons (`track(-<region>).hubspot.com`): `__ptq.gif` (page view),
+  `__ptbe.gif` (custom behavioral event — name in `n`, properties as `_<name>`) and
+  `__ptc.gif` (click / interaction, target described by `_hs_*`). Account = hub id (`a`).
+- **Collected Forms** (`forms(-<region>).hscollectedforms.net/collected-forms/submit/form`,
+  POST JSON): HubSpot scraping a filled form and shipping `contactFields` and every
+  submitted `formValues` field. Account = `portalId`.
+- Identity data travels in **cleartext** (HubSpot does not hash) — the `identify()`
+  payload in the doubly-encoded `i` param on any beacon, or the form's `contactFields`
+  (email / name / phone). The PII block reports it honestly as **"not hashed"**. Loader/
+  config/analytics scripts and form counters are not tracking hits and are ignored.
+
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, **newest first**, with
 event name, parameters, a user-data summary and (where present) the consent state
@@ -106,6 +119,13 @@ the normal feed and flags the worker-only ones with a **⚡ service worker** bad
 is **off by default**; the broad host permission it needs is requested only when you
 switch it on, so nothing is granted at install unless you actually use it.
 
+**PII / user data.** Every card's detail carries one uniform **PII / user data**
+block across all services: each user-data field is shown as its raw parameter, a
+plain-language category (e.g. `u_hem` → Email), and the detected hash form (SHA-256 /
+SHA-1 / MD5). A terse note appears only when the form contradicts the algorithm the
+service requires; cleartext (e.g. HubSpot) is stated plainly as "not hashed". Reading
+only — no hash validation.
+
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
@@ -124,11 +144,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
-### Unreleased
+### 0.9.0
 - **HubSpot** (10th provider): detects HubSpot's tracking surfaces — the `track(-<region>).hubspot.com` beacons `/__ptq.gif` (page view), `/__ptbe.gif` (custom behavioral event, name in `n`, properties as `_<name>`) and `/__ptc.gif` (click / interaction, target described by `_hs_*`), plus the **Collected Forms** submit `POST` to `forms(-<region>).hscollectedforms.net/collected-forms/submit/form`. The account is the hub id (`a` / `portalId`). Identity data travels in **cleartext** (HubSpot does not hash) — via the doubly URL-encoded `i` param on any beacon, or as `contactFields` (email / name / phone) in the form submit — so the PII block reports it honestly as "not hashed", and the form's submitted `formValues` are shown verbatim. Loader/config/analytics scripts and form counters are not tracking hits and are ignored. Coral pill.
 - **PII / user-data block**: every request detail now carries one uniform "PII / user data" section across all providers. Each user-data field is shown as raw parameter · plain-language category (e.g. `u_hem` → Email, `l_city` → City) · detected hash form (SHA-256 / SHA-1 / MD5, base64url SHA-256 recognised). A terse inline note appears only when the detected form contradicts the algorithm the provider requires (e.g. an MD5-shaped value where SHA-256 is mandated); plaintext is stated plainly, without a leak alarm. Reads only — no plaintext comparison, no normalization, no hash validation.
-
-### 0.9.0
 - **Deep Capture (service-worker / edge hits)**: an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and (as found in testing) Bing UET — which the page-scoped DevTools network feed never sees. These hits are de-duplicated against the DevTools feed (only what DevTools missed is ingested) and marked with a **⚡ service worker** badge, which the fulltext filter also matches. Off by default; the broad host permission is **optional** and requested at the moment you switch it on (from the toggle or the notice link), so nothing broad is granted at install. The service-worker notice now carries an **"enable Deep Capture"** link and flips to a green all-clear once on.
 - **Newest-first ordering**: new hits and page-load blocks are inserted at the top instead of the bottom, so the freshest hit stays in view and Chrome's scroll anchoring keeps whatever you're reading in place. The **⤓ follow** auto-scroll toggle is removed as redundant.
 - **Meta silent-pixel warning**: a pixel can initialise (its `signals/config` fetch fires) yet send no `/tr/` event — a silent tracking failure, typically caused by Meta's traffic-permission settings. When Meta recording is on, a 2-second timer per pixel id is armed on the config fetch; if no matching event follows, a single warning card is shown (a late event self-heals it). Network inference only, no new permissions.
