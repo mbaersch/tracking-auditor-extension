@@ -47,6 +47,18 @@ const tiktokAddToCart = JSON.stringify({
   },
 });
 
+// HubSpot Collected Forms submit — HubSpot scraping a filled form and shipping it
+// in cleartext. Fake contact data (demo@example.com), so it is safe to show; it
+// makes the top card a HubSpot form whose PII block reads "not hashed".
+const hubspotForm = JSON.stringify({
+  contactFields: { email: 'demo@example.com', firstName: 'Demo User', phone: '5550123' },
+  formSelectorId: '#contact-form',
+  formValues: { Message: 'Please call me back', Newsletter: 'Checked', Privacy: 'Checked' },
+  pageTitle: 'Shop', pageUrl: 'https://atomkraftwerke24.de/shop/',
+  portalId: 99999999, type: 'SCRAPED', utk: 'demo1234visitortoken',
+  version: 'collected-forms-embed-js-static-1.4883', collectedFormId: 'contact-form',
+});
+
 // Each block is one page load. requests[] are replayed in order.
 export const DEMO_BLOCKS = [
   {
@@ -67,6 +79,8 @@ export const DEMO_BLOCKS = [
       { url: 'https://analytics.tiktok.com/api/v2/pixel', method: 'POST', postData: { text: tiktokPageview } },
       // LinkedIn Insight Tag page view (px collect beacon)
       { url: 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1782761000&url=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&tm=gtmv2' },
+      // HubSpot page view (__ptq.gif)
+      { url: 'https://track-eu1.hubspot.com/__ptq.gif?a=99999999&v=1.1&pu=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&t=Enhanced%20Conversions%20Test%20Page&vi=demo1234visitortoken&cts=1782761000&sd=1920x1080&cd=24-bit&cs=UTF-8&ln=en-US&u=99999999.demo1234visitortoken&b=99999999.1&cc=15' },
     ],
   },
   {
@@ -87,6 +101,9 @@ export const DEMO_BLOCKS = [
       { url: 'https://analytics.tiktok.com/api/v2/pixel', method: 'POST', postData: { text: tiktokAddToCart } },
       // LinkedIn Insight Tag conversion (px collect beacon, conversionId set)
       { url: 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1782761414&conversionId=111111111111&url=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&tm=gtmv2' },
+      // HubSpot Collected Forms submit (cleartext contactFields) — kept last so it
+      // is the newest, top card; 02-event-detail then expands its PII block.
+      { url: 'https://forms-eu1.hscollectedforms.net/collected-forms/submit/form', method: 'POST', postData: { text: hubspotForm } },
     ],
   },
 ];
