@@ -1098,7 +1098,7 @@ function paintSwNotice(el) {
   el.classList.toggle('blk-notice-ok', deep);
   el.innerHTML = deep
     ? `<span class="blk-notice-icon" aria-hidden="true">✓</span>` +
-      `<span class="blk-notice-text">Service worker active (first-party tag delivery) — Deep Capture is on, so worker-dispatched hits are captured (marked ⚡ SW).</span>` +
+      `<span class="blk-notice-text">Service worker active (first-party tag delivery) — Deep Capture is on, so worker-dispatched hits are captured (marked ⚡ Service Worker).</span>` +
       `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`
     : `<span class="blk-notice-icon" aria-hidden="true">⚠</span>` +
       `<span class="blk-notice-text">Service worker active (first-party tag delivery) — hits may be dispatched from the worker and stay invisible to DevTools / this panel.</span>` +
