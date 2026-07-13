@@ -131,11 +131,16 @@ async function main() {
     await light.screenshot({ path: join(outDir, '01-overview.png') });
     shots.push('01-overview.png');
 
-    await light.locator('.ev').first().click();   // expand the first card's parameter table
+    await light.locator('.ev').first().click();   // expand the top card (GA4 purchase)
     await light.evaluate(() => window.scrollTo(0, 0));
     await light.screenshot({ path: join(outDir, '02-event-detail.png') });
     shots.push('02-event-detail.png');
 
+    // Toggle via the caret, not the card body: an expanded card's centre lands in
+    // the .ev-detail table, whose clicks are ignored (panel.js), so a body-click
+    // would never collapse it.
+    await light.locator('.ev').first().locator('.ev-caret').click();   // collapse GA4 again
+    await light.locator('.ev').nth(1).locator('.ev-caret').click();    // expand the Meta card instead
     await light.click('#settingsBtn');             // reveal the capture-settings row
     await light.evaluate(() => window.scrollTo(0, 0));
     await light.screenshot({ path: join(outDir, '03-settings-filter.png') });
