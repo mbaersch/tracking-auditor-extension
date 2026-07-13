@@ -124,6 +124,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
+### Unreleased
+- **PII / user-data block**: every request detail now carries one uniform "PII / user data" section across all providers. Each user-data field is shown as raw parameter · plain-language category (e.g. `u_hem` → Email, `l_city` → City) · detected hash form (SHA-256 / SHA-1 / MD5, base64url SHA-256 recognised). A terse inline note appears only when the detected form contradicts the algorithm the provider requires (e.g. an MD5-shaped value where SHA-256 is mandated); plaintext is stated plainly, without a leak alarm. Reads only — no plaintext comparison, no normalization, no hash validation.
+
 ### 0.9.0
 - **Deep Capture (service-worker / edge hits)**: an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and (as found in testing) Bing UET — which the page-scoped DevTools network feed never sees. These hits are de-duplicated against the DevTools feed (only what DevTools missed is ingested) and marked with a **⚡ service worker** badge, which the fulltext filter also matches. Off by default; the broad host permission is **optional** and requested at the moment you switch it on (from the toggle or the notice link), so nothing broad is granted at install. The service-worker notice now carries an **"enable Deep Capture"** link and flips to a green all-clear once on.
 - **Newest-first ordering**: new hits and page-load blocks are inserted at the top instead of the bottom, so the freshest hit stays in view and Chrome's scroll anchoring keeps whatever you're reading in place. The **⤓ follow** auto-scroll toggle is removed as redundant.
