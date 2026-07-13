@@ -10,6 +10,7 @@ import { parseGoogleAdsRequest } from './lib/googleads.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
+import { parseHubspotRequest } from './lib/hubspot.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { algoLabel, algoNote } from './lib/params.js';
 
@@ -36,13 +37,14 @@ const PARSERS = [
   { id: 'linkedin', parse: parseLinkedInRequest },
   { id: 'reddit', parse: parseRedditRequest },
   { id: 'snapchat', parse: parseSnapchatRequest },
+  { id: 'hubspot', parse: parseHubspotRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -50,8 +52,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -80,6 +82,7 @@ function eventName(r) {
   if (r.provider === 'linkedin') return r.eventName;
   if (r.provider === 'reddit')   return r.event;
   if (r.provider === 'snapchat') return r.event;
+  if (r.provider === 'hubspot')  return r.event;
 
   return r.en;
 }
@@ -92,6 +95,7 @@ function accountId(r) {
   if (r.provider === 'linkedin') return r.pid;
   if (r.provider === 'reddit')   return r.pixelId;
   if (r.provider === 'snapchat') return r.pixelId;
+  if (r.provider === 'hubspot')  return r.accountId;      // hub / portal id (a)
   return r.tid;
 }
 function accountTitle(r) {
@@ -103,10 +107,11 @@ function accountTitle(r) {
   if (r.provider === 'linkedin') return 'Partner ID (pid)';
   if (r.provider === 'reddit')   return 'Pixel ID (id)';
   if (r.provider === 'snapchat') return 'Pixel ID (pid)';
+  if (r.provider === 'hubspot')  return 'Hub ID (a)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -167,6 +172,11 @@ function providerPills(r) {
   }
   if (r.provider === 'snapchat') {
     return '<span class="pill pill-snapchat" title="Snapchat Pixel — tr.snapchat.com/p">Snapchat</span>';
+  }
+  if (r.provider === 'hubspot') {
+    const pills = ['<span class="pill pill-hubspot" title="HubSpot tracking code — track.hubspot.com/__ptq.gif (page view) / __ptbe.gif (event)">HubSpot</span>'];
+    if (r.eventType === 'pageview') pills.push('<span class="pill pill-event" title="__ptq.gif — a page view">page view</span>');
+    return pills.join('');
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
   const sub = GA4_TRANSPORT_SUB[r.transport];
@@ -277,6 +287,13 @@ function flagPills(r) {
       out.push(`<span class="pill pill-conversion" title="e_pr / e_cur">revenue: ${amount}</span>`);
     }
     if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (e_*)">ecommerce</span>');
+    return out.join('');
+  }
+  if (r.provider === 'hubspot') {
+    const f = r.flags || {};
+    if (f.customEvent) out.push('<span class="pill pill-ee" title="__ptbe.gif — a custom behavioral event (name in n)">custom event</span>');
+    if (r.properties)  out.push(`<span class="pill pill-ep" title="event properties: _${escapeHtml(Object.keys(r.properties).join(', _'))}">props ×${Object.keys(r.properties).length}</span>`);
+    if (f.identify)    out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
     return out.join('');
   }
   const f = r.flags;
@@ -396,6 +413,7 @@ const PII_SECTION_TITLE = {
   linkedin: 'PII / enhanced conversions (hem)',
   reddit: 'PII / user data (advanced + auto matching)',
   snapchat: 'PII / user data (advanced matching — incl. geo/age)',
+  hubspot: 'PII / user data (identify — cleartext)',
 };
 
 // The one place PII surfaces in the details: every user-data field a request
@@ -721,6 +739,21 @@ function detailHtml(r) {
     }
     if (r.extras && Object.keys(r.extras).length) {
       extras += section('purchase extras', `<table class="det-table">${paramRows(r.extras)}</table>`);
+    }
+  } else if (r.provider === 'hubspot') {
+    meta = [
+      ['type', r.eventType === 'pageview' ? 'page view (__ptq.gif)' : 'custom event (__ptbe.gif)'],
+      ['event name (n)', r.eventNameRaw],
+      ['hub id (a)', r.accountId],
+      ['transport', r.transport], ['method', r.method],
+      ['visitor id (vi)', r.visitorId], ['version (v)', r.version],
+      ['page title (t)', r.pageTitle], ['page url (pu)', r.pageUrl],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    extras += piiSection(r);
+    if (r.properties) {
+      extras += section('event properties (_*)', `<table class="det-table">${paramRows(r.properties)}</table>`);
     }
   } else {
     meta = [

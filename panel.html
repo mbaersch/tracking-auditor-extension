@@ -25,6 +25,7 @@
       --card-linkedin:  #e7f3fb;   /* azure (a touch cyaner than Meta's sky) */
       --card-reddit:    #ffe8de;   /* orangered — redder than GA4's warm / Ads' peach */
       --card-snapchat:  #fef8d9;   /* yellow — distinct from every other tint */
+      --card-hubspot:   #ffe9e2;   /* coral (sprocket) — HubSpot orange */
       --text: #1e293b;
       --text-muted: #64748b;
       --text-faint: #94a3b8;
@@ -53,6 +54,7 @@
         --card-linkedin:  #10222f;   /* azure  */
       --card-reddit:    #34190f;   /* orangered */
       --card-snapchat:  #33300d;   /* yellow */
+      --card-hubspot:   #3a2118;   /* coral  */
         --text: #e2e8f0;
         --text-muted: #94a3b8;
         --text-faint: #64748b;
@@ -143,6 +145,7 @@
     .ev.p-linkedin { background: var(--card-linkedin); }
     .ev.p-reddit { background: var(--card-reddit); }
     .ev.p-snapchat { background: var(--card-snapchat); }
+    .ev.p-hubspot { background: var(--card-hubspot); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -171,6 +174,7 @@
     .pill-linkedin  { background: #0a66c2; color: #fff; }
     .pill-reddit    { background: #ff4500; color: #fff; }
     .pill-snapchat  { background: #fffc00; color: #111; }
+    .pill-hubspot   { background: #ff7a59; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -228,6 +232,7 @@
         <label><input type="checkbox" data-rec="linkedin" checked> LinkedIn</label>
         <label><input type="checkbox" data-rec="reddit" checked> Reddit</label>
         <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
+        <label><input type="checkbox" data-rec="hubspot" checked> HubSpot</label>
         <span class="ctl-hint">which services are captured (applies to new hits)</span>
       </div>
       <div class="ctl-row">
@@ -245,7 +250,7 @@
       <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>
   </header>
-  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit and Snapchat requests will appear here, grouped per page load.</div>
+  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit, Snapchat and HubSpot requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
   <script type="module" src="panel.js"></script>

@@ -125,6 +125,7 @@ If you want to modify the extension or run an unreleased version, load it unpack
 ## Changelog
 
 ### Unreleased
+- **HubSpot** (10th provider): detects the HubSpot tracking code beacons to `track(-<region>).hubspot.com` — `/__ptq.gif` (page view) and `/__ptbe.gif` (custom behavioral event, name in `n`, properties as `_<name>`). The account is the hub id (`a`). The `identify()` payload rides on either beacon in the doubly URL-encoded `i` param and is decoded into email / firstname / lastname (and any other contact property); because HubSpot sends these in **cleartext**, the PII block reports them honestly as "not hashed". Coral pill.
 - **PII / user-data block**: every request detail now carries one uniform "PII / user data" section across all providers. Each user-data field is shown as raw parameter · plain-language category (e.g. `u_hem` → Email, `l_city` → City) · detected hash form (SHA-256 / SHA-1 / MD5, base64url SHA-256 recognised). A terse inline note appears only when the detected form contradicts the algorithm the provider requires (e.g. an MD5-shaped value where SHA-256 is mandated); plaintext is stated plainly, without a leak alarm. Reads only — no plaintext comparison, no normalization, no hash validation.
 
 ### 0.9.0
