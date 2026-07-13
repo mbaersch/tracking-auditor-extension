@@ -174,8 +174,10 @@ function providerPills(r) {
     return '<span class="pill pill-snapchat" title="Snapchat Pixel — tr.snapchat.com/p">Snapchat</span>';
   }
   if (r.provider === 'hubspot') {
-    const pills = ['<span class="pill pill-hubspot" title="HubSpot tracking code — track.hubspot.com/__ptq.gif (page view) / __ptbe.gif (event)">HubSpot</span>'];
+    const pills = ['<span class="pill pill-hubspot" title="HubSpot — track.hubspot.com beacons (__ptq/__ptbe/__ptc) + Collected Forms">HubSpot</span>'];
     if (r.eventType === 'pageview') pills.push('<span class="pill pill-event" title="__ptq.gif — a page view">page view</span>');
+    if (r.eventType === 'click')    pills.push('<span class="pill pill-event" title="__ptc.gif — a click / interaction on a tracked element">click</span>');
+    if (r.eventType === 'form')     pills.push('<span class="pill pill-custom" title="Collected Forms — a scraped form submission (hscollectedforms.net)">collected form</span>');
     return pills.join('');
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
@@ -293,7 +295,8 @@ function flagPills(r) {
     const f = r.flags || {};
     if (f.customEvent) out.push('<span class="pill pill-ee" title="__ptbe.gif — a custom behavioral event (name in n)">custom event</span>');
     if (r.properties)  out.push(`<span class="pill pill-ep" title="event properties: _${escapeHtml(Object.keys(r.properties).join(', _'))}">props ×${Object.keys(r.properties).length}</span>`);
-    if (f.identify)    out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
+    if (f.form)        out.push('<span class="pill pill-em" title="contactFields (email / name / phone) submitted in CLEARTEXT via Collected Forms">contact fields</span>');
+    else if (f.identify) out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
     return out.join('');
   }
   const f = r.flags;
@@ -741,17 +744,36 @@ function detailHtml(r) {
       extras += section('purchase extras', `<table class="det-table">${paramRows(r.extras)}</table>`);
     }
   } else if (r.provider === 'hubspot') {
+    const TYPE_LABEL = {
+      pageview: 'page view (__ptq.gif)',
+      event: 'custom event (__ptbe.gif)',
+      click: 'click / interaction (__ptc.gif)',
+      form: 'collected form submit (hscollectedforms.net)',
+    };
     meta = [
-      ['type', r.eventType === 'pageview' ? 'page view (__ptq.gif)' : 'custom event (__ptbe.gif)'],
+      ['type', TYPE_LABEL[r.eventType] || r.eventType],
       ['event name (n)', r.eventNameRaw],
       ['hub id (a)', r.accountId],
+      ['form id', r.formId], ['form type', r.formType],
       ['transport', r.transport], ['method', r.method],
-      ['visitor id (vi)', r.visitorId], ['version (v)', r.version],
-      ['page title (t)', r.pageTitle], ['page url (pu)', r.pageUrl],
+      [r.eventType === 'form' ? 'user token (utk)' : 'visitor id (vi)', r.visitorId], ['version', r.version],
+      ['page title', r.pageTitle], ['page url', r.pageUrl],
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
 
     extras += piiSection(r);
+    if (r.click) {
+      const rows = [];
+      if (r.click.tag)          rows.push(['element', `<${r.click.tag.toLowerCase()}>`]);
+      if (r.click.text)         rows.push(['text', r.click.text]);
+      if (r.click.href)         rows.push(['link href', r.click.href]);
+      if (r.click.elementClass) rows.push(['class', r.click.elementClass]);
+      rows.push(['navigation', r.click.isNavigation ? 'yes' : 'no']);
+      extras += section('click target (_hs_*)', kvTable(rows));
+    }
+    if (r.formValues && Object.keys(r.formValues).length) {
+      extras += section('form values (submitted)', `<table class="det-table">${paramRows(r.formValues)}</table>`);
+    }
     if (r.properties) {
       extras += section('event properties (_*)', `<table class="det-table">${paramRows(r.properties)}</table>`);
     }

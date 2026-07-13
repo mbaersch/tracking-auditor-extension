@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseHubspotRequest,
   isHubspotHost,
+  isHubspotFormsHost,
   extractHubspotIdentify,
   extractHubspotUserData,
   summarizeHubspotIdentifiers,
@@ -68,6 +69,58 @@ test('identify payload (i) decodes to cleartext user data, reported not-hashed',
   assert.equal(r.userData.firstname.label, 'First name');
   assert.equal(r.userData.lastname.label, 'Last name');
   assert.deepEqual(r.identifiers, { email: 1, phone: 0, name: 1, address: 0 });
+});
+
+// Real __ptc.gif click beacon captured on uniorg.de/kontakt (huge _hs_selector
+// trimmed; the params that matter are verbatim).
+const CLICK = 'https://track-eu1.hubspot.com/__ptc.gif?_hs_tag_name=A&_hs_element_id=&_hs_element_class=elementor-button+elementor-button-link&_hs_element_text=Kontakt&_hs_link_href=https%3A%2F%2Fwww.uniorg.de%2Fkontakt%2F&_hs_mouse_x_coordinate=1261&_hs_mouse_y_coordinate=54&_hs_is_navigation=true&sd=1920x1080&v=1.1&a=147292866&pu=https%3A%2F%2Fwww.uniorg.de%2F&t=UNIORG&cts=1783944163735&vi=1380c106cd176e612b1a11420d30d35b&nc=false&u=226818242.1380c106&b=226818242.3&cc=15';
+
+// Real collected-forms submit body captured when filling the contact form.
+const CF_URL = 'https://forms-eu1.hscollectedforms.net/collected-forms/submit/form';
+const CF_BODY = '{"contactFields":{"email":"test@test.de","firstName":"Test Test","phone":"123456789"},"formSelectorId":"#form_website_global_contact","formValues":{"Bemerkung":"TEST TRACKING","Ja, ich möchte einen Rückruf anfordern":"Not Checked","Datenschutz":"Checked"},"pageTitle":"Kontakt - UNIORG","pageUrl":"https://www.uniorg.de/kontakt/","portalId":147292866,"type":"SCRAPED","utk":"1380c106cd176e612b1a11420d30d35b","version":"collected-forms-embed-js-static-1.4883","collectedFormId":"form_website_global_contact"}';
+
+test('__ptc.gif → click interaction record', () => {
+  const r = parseHubspotRequest(CLICK, null);
+  assert.ok(r);
+  assert.equal(r.eventType, 'click');
+  assert.equal(r.event, 'Click');
+  assert.equal(r.accountId, '147292866');
+  assert.equal(r.flags.click, true);
+  assert.equal(r.click.tag, 'A');
+  assert.equal(r.click.text, 'Kontakt');
+  assert.equal(r.click.href, 'https://www.uniorg.de/kontakt/');
+  assert.equal(r.click.isNavigation, true);
+  assert.equal(r.properties, null);          // _hs_* are internal, not event properties
+  assert.equal(r.userData, null);
+});
+
+test('collected-forms submit → cleartext contact fields + form values', () => {
+  const r = parseHubspotRequest(CF_URL, CF_BODY);
+  assert.ok(r);
+  assert.equal(r.provider, 'hubspot');
+  assert.equal(r.transport, 'collected-forms');
+  assert.equal(r.eventType, 'form');
+  assert.equal(r.event, 'Form submission');
+  assert.equal(r.accountId, '147292866');     // portalId
+  assert.equal(r.formType, 'SCRAPED');
+  assert.equal(r.formId, 'form_website_global_contact');
+  assert.equal(r.pageUrl, 'https://www.uniorg.de/kontakt/');
+  // contactFields (camelCase) → cleartext user data, reported not-hashed.
+  assert.equal(r.userData.email.label, 'Email');
+  assert.equal(r.userData.email.algo, null);
+  assert.equal(r.userData.firstname.label, 'First name');   // firstName → firstname
+  assert.equal(r.userData.phone.label, 'Phone');
+  assert.deepEqual(r.identifiers, { email: 1, phone: 1, name: 1, address: 0 });
+  // formValues preserved verbatim.
+  assert.equal(r.formValues.Bemerkung, 'TEST TRACKING');
+  assert.equal(r.formValues.Datenschutz, 'Checked');
+});
+
+test('collected-forms host detection + OPTIONS/preflight ignored', () => {
+  assert.equal(isHubspotFormsHost('forms-eu1.hscollectedforms.net'), true);
+  assert.equal(isHubspotFormsHost('forms.hscollectedforms.net'), true);
+  assert.equal(isHubspotFormsHost('js-eu1.hscollectedforms.net'), false);
+  assert.equal(parseHubspotRequest(CF_URL, null), null);   // no JSON body (e.g. OPTIONS) → not a submit
 });
 
 test('non-HubSpot / wrong path returns null', () => {
