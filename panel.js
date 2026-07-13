@@ -11,6 +11,7 @@ import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } fro
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
+import { algoLabel, algoNote } from './lib/params.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -382,15 +383,44 @@ function section(title, inner) {
   return inner ? `<div class="det-section">${escapeHtml(title)}</div>${inner}` : '';
 }
 
-function metaUserDataSection(userData) {
-  if (!userData) return '';
-  // Show the masked shape (PII-free) plus whether a hash was actually sent.
-  const rows = Object.values(userData).map((f) => {
-    const shape = f.mask || f.normalizedMask || (f.hashed ? '(hashed only)' : '');
-    const note = f.hashed ? ' · hashed' : '';
-    return `<tr><td>${escapeHtml(f.label)}</td><td>${escapeHtml(shape)}${escapeHtml(note)}</td></tr>`;
-  });
-  return section('user data (advanced matching)', `<table class="det-table">${rows.join('')}</table>`);
+// Section titles keep each provider's useful context (which param carries the
+// data, e.g. "(pd)" or "(context.user)") while sharing the "PII / " prefix so
+// the block reads as one recognisable thing across all providers.
+const PII_SECTION_TITLE = {
+  ga4: 'PII / user data',
+  meta: 'PII / user data (advanced matching)',
+  uet: 'PII / user data (enhanced conversions)',
+  tiktok: 'PII / user data (context.user)',
+  pinterest: 'PII / enhanced match (pd)',
+  googleads: 'PII / enhanced conversions (em)',
+  linkedin: 'PII / enhanced conversions (hem)',
+  reddit: 'PII / user data (advanced + auto matching)',
+  snapchat: 'PII / user data (advanced matching — incl. geo/age)',
+};
+
+// The one place PII surfaces in the details: every user-data field a request
+// carries, translated to its plain-language category, with the detected hash
+// form. A terse note appears only when the form contradicts the algorithm the
+// provider requires (algoNote). Meta additionally keeps its PII-free masked
+// value. Reads only — no plaintext comparison, no validation.
+function piiSection(r) {
+  const ud = r.piiFields || r.userData;
+  if (!ud || !Object.keys(ud).length) return '';
+  const hasMask = Object.values(ud).some((f) => f.mask || f.normalizedMask);
+  const head = hasMask
+    ? '<tr><th>field</th><th>category</th><th>masked value</th><th>form</th></tr>'
+    : '<tr><th>field</th><th>category</th><th>form</th></tr>';
+  const rows = Object.entries(ud).map(([key, f]) => {
+    const algo = ('algo' in f) ? f.algo : (f.hashed ? 'sha256' : null);
+    const note = algoNote(r.provider, algo);
+    let form = escapeHtml(algoLabel(algo));
+    if (note) form += ` · <span class="pii-note">${escapeHtml(note)}</span>`;
+    if (f.list) form += ` · ${f.list.length} value(s)`;
+    const maskCell = hasMask ? `<td>${escapeHtml(f.mask || f.normalizedMask || '')}</td>` : '';
+    return `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(f.label || key)}</td>${maskCell}<td>${form}</td></tr>`;
+  }).join('');
+  return section(PII_SECTION_TITLE[r.provider] || 'PII / user data',
+    `<table class="det-table pii-table">${head}${rows}</table>`);
 }
 
 // GA4 e-commerce items (pr1..prN): one readable sub-table per product. Custom
@@ -447,7 +477,7 @@ function detailHtml(r) {
       if (r.consent.state != null)   rows.push(['state (dpost)', r.consent.state]);
       extras += section('Consent', kvTable(rows));
     }
-    extras += metaUserDataSection(r.userData);
+    extras += piiSection(r);
     if (r.customData && Object.keys(r.customData).length) {
       extras += section('custom data (cd)', `<table class="det-table">${paramRows(r.customData)}</table>`);
     }
@@ -475,11 +505,7 @@ function detailHtml(r) {
     if (r.consent && r.consent.cdb != null) cRows.push(['cdb', r.consent.cdb]);
     extras += section('Consent', kvTable(cRows));
 
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw)'}</td></tr>`);
-      extras += section('user data (enhanced conversions)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
   } else if (r.provider === 'tiktok') {
     meta = [
       ['event', r.event], ['pixel code', r.code],
@@ -489,11 +515,7 @@ function detailHtml(r) {
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
 
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / not hashed)'}</td></tr>`);
-      extras += section('user data (context.user)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
 
     if (r.ecommerce) {
       const e = r.ecommerce;
@@ -540,11 +562,7 @@ function detailHtml(r) {
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
 
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / not hashed)'}</td></tr>`);
-      extras += section('enhanced match (pd)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
     if (r.pinUnauth || (r.aemEligible && r.aemEligible.length)) {
       const rows = [];
       if (r.pinUnauth)                       rows.push(['pin_unauth', r.pinUnauth]);
@@ -597,11 +615,7 @@ function detailHtml(r) {
     if (r._transports && r._transports.length) {
       extras += section(`transports (${r._transports.length})`, kvTable([['endpoints', r._transports.join(' · ')]]));
     }
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
-      extras += section('enhanced conversions (em)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
     if (r.emd) extras += section('match diagnostics (emd)', kvTable([['emd', r.emd]]));
     if (Array.isArray(r.items) && r.items.length) {
       const rows = r.items.map((it) =>
@@ -631,11 +645,7 @@ function detailHtml(r) {
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
 
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
-      extras += section('enhanced conversions (hem)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
     if (r.liFatId || r.liGiant) {
       const rows = [];
       if (r.liFatId) rows.push(['liFatId', r.liFatId]);
@@ -677,14 +687,7 @@ function detailHtml(r) {
     if (r.revenue) {
       extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
     }
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) => {
-        const note = f.hashed ? 'hashed' : '(raw / plain)';
-        const extra = f.list ? ` · ${f.list.length} value(s)` : '';
-        return `<tr><td>${escapeHtml(f.label)}</td><td>${escapeHtml(note)}${escapeHtml(extra)}</td></tr>`;
-      });
-      extras += section('user data (advanced + auto matching)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
     const convRows = [];
     if (r.transactionId) convRows.push(['transaction id (m.transactionId)', r.transactionId]);
     if (r.conversionId)  convRows.push(['conversion id (m.conversionId)', r.conversionId]);
@@ -703,11 +706,7 @@ function detailHtml(r) {
     if (r.revenue) {
       extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
     }
-    if (r.userData) {
-      const rows = Object.values(r.userData).map((f) =>
-        `<tr><td>${escapeHtml(f.label)}</td><td>${f.hashed ? 'hashed' : '(raw / plain)'}</td></tr>`);
-      extras += section('user data (advanced matching — incl. geo/age)', `<table class="det-table">${rows.join('')}</table>`);
-    }
+    extras += piiSection(r);
     if (r.ecommerce) {
       const e = r.ecommerce;
       const rows = [];
@@ -744,9 +743,7 @@ function detailHtml(r) {
       }
       extras += section('Consent', kvTable(rows));
     }
-    if (r.userData) {
-      extras += section('user_data', kvTable([['parsed', JSON.stringify(r.userData)]]));
-    }
+    extras += piiSection(r);
   }
 
   const qSection = section('Query parameters', `<table class="det-table">${paramRows(r.queryParams)}</table>`);

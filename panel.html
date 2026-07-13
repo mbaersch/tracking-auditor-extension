@@ -193,6 +193,11 @@
     .det-dump { font-size: 10px; font-family: 'Fira Code', 'Consolas', monospace; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-width: 100%; margin: 2px 0 0; padding: 6px; background: rgba(127,127,127,0.08); border-radius: 4px; }
     .det-note { font-size: 11px; line-height: 1.5; color: var(--text); margin: 2px 0 0; padding: 6px 8px; background: rgba(127,127,127,0.08); border-radius: 4px; }
     .det-note a { color: var(--primary); }
+    /* PII / user-data block: field (code) · category (readable) · detected hash form */
+    .pii-table th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-faint); font-weight: 700; padding: 2px 6px; border-bottom: 1px solid var(--border); }
+    .pii-table td:first-child { font-family: 'Fira Code', 'Consolas', monospace; }
+    .pii-table td:nth-child(2) { font-family: inherit; word-break: normal; color: var(--text); }
+    .pii-note { color: var(--text-faint); font-style: italic; }
     code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; color: var(--primary); }
   </style>
 </head>
