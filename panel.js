@@ -120,7 +120,8 @@ function docLocation(r) {
 
 // GA4 transport sub-pills shown next to the GA4 provider pill (standard needs none).
 const GA4_TRANSPORT_SUB = {
-  'first-party': { cls: 'pill-custom', label: 'first-party', tip: 'First-party sGTM / Tag Gateway on a standard collect path' },
+  'first-party': { cls: 'pill-custom', label: 'first-party', tip: 'sGTM / Tag Gateway on the site’s own registrable domain (page eTLD+1 == host eTLD+1)' },
+  'proxy':       { cls: 'pill-stape',  label: 'proxy',       tip: 'sGTM / server proxy on a foreign domain (host eTLD+1 ≠ page eTLD+1) — not first-party' },
   'stape-b64':   { cls: 'pill-stape',  label: 'Stape b64',   tip: 'Stape Custom Loader — GA4 path was base64-encoded inside the request URL' },
   'custom-path': { cls: 'pill-custom', label: 'Custom path',  tip: 'Custom delivery path without a standard /collect segment' },
 };
@@ -158,7 +159,7 @@ function providerPills(r) {
     const sig = SIG[r.signalType];
     if (sig) pills.push(`<span class="pill pill-event" title="signal type — all transport mirrors of one hit are folded into this card">${escapeHtml(sig)}</span>`);
     if (r.transport === 'first-party') {
-      pills.push('<span class="pill pill-custom" title="First-party / sGTM-proxied Ads endpoint on the site&#39;s own domain (untested)">first-party</span>');
+      pills.push('<span class="pill pill-custom" title="sGTM-proxied Ads endpoint on the site&#39;s own registrable domain (page eTLD+1 == host eTLD+1)">first-party</span>');
     }
     return pills.join('');
   }

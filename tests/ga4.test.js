@@ -37,11 +37,26 @@ test('standard Google GA4 request', () => {
   assert.equal(r.en, 'page_view');
 });
 
-test('first-party sGTM on standard collect path', () => {
-  const r = parseGa4Request('https://sgtm.example.com/g/collect?v=2&tid=G-ABC1234XYZ&en=purchase', null);
+test('first-party sGTM on the site’s own registrable domain', () => {
+  // sgtm.example.com ↔ page www.example.com → same eTLD+1 → first-party.
+  const r = parseGa4Request('https://sgtm.example.com/g/collect?v=2&tid=G-ABC1234XYZ&en=purchase&dl=https%3A%2F%2Fwww.example.com%2Fcheckout', null);
   assert.ok(r);
   assert.equal(r.transport, 'first-party');
   assert.equal(r.en, 'purchase');
+});
+
+test('sGTM on a foreign domain is proxy, not first-party', () => {
+  // Common real setup: GA4 routed through the SSP vendor’s own subdomain.
+  const r = parseGa4Request('https://abc.taggrs.io/g/collect?v=2&tid=G-ABC1234XYZ&en=purchase&dl=https%3A%2F%2Fexample.com%2F', null);
+  assert.ok(r);
+  assert.equal(r.transport, 'proxy');
+});
+
+test('collect on a non-Google host without dl cannot claim first-party', () => {
+  // No page origin to compare against → no same-site evidence → proxy.
+  const r = parseGa4Request('https://sgtm.example.com/g/collect?v=2&tid=G-ABC1234XYZ&en=purchase', null);
+  assert.ok(r);
+  assert.equal(r.transport, 'proxy');
 });
 
 test('plaintext custom path (cryptic path, plain params)', () => {
