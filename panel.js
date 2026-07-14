@@ -222,7 +222,6 @@ function providerPills(r) {
   if (r.provider === 'outbrain') {
     const pills = ['<span class="pill pill-outbrain" title="Outbrain Pixel — tr.outbrain.com/unifiedPixel (obApi)">Outbrain</span>'];
     if (r.flags && r.flags.pageView) pills.push('<span class="pill pill-event" title="name=PAGE_VIEW — the automatic page-view fire">page view</span>');
-    else pills.push('<span class="pill pill-event" title="an advertiser-defined conversion event (obApi track name)">conversion</span>');
     return pills.join('');
   }
   if (r.provider === 'hubspot') {
@@ -386,7 +385,7 @@ function flagPills(r) {
   }
   if (r.provider === 'outbrain') {
     const f = r.flags || {};
-    if (f.conversion) out.push(`<span class="pill pill-ee" title="advertiser-defined conversion (obApi track name)">conversion: ${escapeHtml(r.event)}</span>`);
+    if (f.custom && !f.pageView) out.push('<span class="pill pill-ee" title="Custom event (not a documented Outbrain standard event name)">custom event</span>');
     if (r.revenue) {
       const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
       out.push(`<span class="pill pill-conversion" title="orderValue / currency">revenue: ${amount}</span>`);
@@ -999,7 +998,7 @@ function detailHtml(r) {
   } else if (r.provider === 'outbrain') {
     meta = [
       ['event (name)', r.event],
-      ['kind', r.flags && r.flags.pageView ? 'page view' : 'conversion (advertiser-defined)'],
+      ['kind', r.flags && r.flags.pageView ? 'page view' : (r.standardEvent ? 'standard event' : 'custom event')],
       ['marketer id', r.account],
       ['transport', r.transport], ['method', r.method],
       ['channel (cht)', r.channel], ['zone', r.zone],

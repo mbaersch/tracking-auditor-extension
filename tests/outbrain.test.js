@@ -41,7 +41,8 @@ test('PAGE_VIEW: account, event, page url, channel, versions', () => {
   assert.equal(r.provider, 'outbrain');
   assert.equal(r.event, 'PAGE_VIEW');
   assert.equal(r.flags.pageView, true);
-  assert.equal(r.flags.conversion, false);
+  assert.equal(r.standardEvent, true);              // PAGE_VIEW is a standard event name
+  assert.equal(r.flags.custom, false);
   assert.equal(r.account, MID);
   assert.equal(r.pageUrl, 'https://www.posterlounge.de/');
   assert.equal(r.previousPage, 'https://tagassistant.google.com/');
@@ -51,15 +52,24 @@ test('PAGE_VIEW: account, event, page url, channel, versions', () => {
   assert.equal(r.revenue, null);
 });
 
-// --- conversions -----------------------------------------------------------
-test('AddToCart / ViewContent / Lead: advertiser-named conversions, no revenue', () => {
+// --- events: standard vs custom --------------------------------------------
+test('AddToCart / ViewContent / Lead are standard events (not page views), no revenue', () => {
   for (const [url, name] of [[ADD_TO_CART, 'AddToCart'], [VIEW_CONTENT, 'ViewContent'], [LEAD, 'Lead']]) {
     const r = parseOutbrainRequest(url, null);
-    assert.equal(r.event, name);
-    assert.equal(r.flags.conversion, true);
+    assert.equal(r.event, name);            // kept verbatim
     assert.equal(r.flags.pageView, false);
+    assert.equal(r.standardEvent, true);    // documented Outbrain event name
+    assert.equal(r.flags.custom, false);
     assert.equal(r.revenue, null);
   }
+});
+
+test('an advertiser custom event name is surfaced verbatim as custom (not a conversion)', () => {
+  const r = parseOutbrainRequest(OB('MyFunnelStep'), null);
+  assert.equal(r.event, 'MyFunnelStep');
+  assert.equal(r.standardEvent, false);
+  assert.equal(r.flags.custom, true);
+  assert.equal(r.flags.pageView, false);
 });
 
 test('Purchase: revenue params (orderValue / currency / orderId) are parsed', () => {
