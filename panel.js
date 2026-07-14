@@ -189,9 +189,20 @@ function providerPills(r) {
     return pills.join('');
   }
   const pills = ['<span class="pill pill-ga4" title="Google Analytics 4">GA4</span>'];
-  const sub = GA4_TRANSPORT_SUB[r.transport];
+  // For a taggrs hit the taggrsPill IS the transport indicator (like Stape b64),
+  // so skip the native sub-pill to keep the card parallel: GA4 · taggrs.
+  const sub = r._taggrs ? null : GA4_TRANSPORT_SUB[r.transport];
   if (sub) pills.push(`<span class="pill ${sub.cls}" title="${escapeHtml(sub.tip)}">${escapeHtml(sub.label)}</span>`);
   return pills.join('');
+}
+
+// Transport pill for a hit decrypted out of a taggrs custom-loader envelope. Sits
+// next to the provider pill — the same slot as the Stape b64 sub-pill — because
+// it describes the same thing: an obfuscated delivery the panel saw through.
+function taggrsPill(r) {
+  if (!r._taggrs) return '';
+  const tip = `Decrypted from a taggrs custom-loader (AES-256-GCM) envelope sent to ${r._taggrs.host} — the real request was hidden as an opaque blob. See the detail for the encrypted original.`;
+  return `<span class="pill pill-taggrs" title="${escapeHtml(tip)}">taggrs</span>`;
 }
 
 function flagPills(r) {
@@ -809,6 +820,18 @@ function detailHtml(r) {
     extras += piiSection(r);
   }
 
+  // taggrs: show the encrypted original next to the decrypted request (which
+  // rides in each provider's "request url" row) — same idea as the Stape b64 card.
+  if (r._taggrs) {
+    const rows = [
+      ['delivered to (proxy)', r._taggrs.endpoint],
+      ['client id', r._taggrs.clientId],
+      ['encrypted request (u)', r._taggrs.cipherU],
+    ];
+    if (r._taggrs.cipherB) rows.push(['encrypted body (b)', r._taggrs.cipherB]);
+    extras = section('taggrs envelope (AES-256-GCM, decrypted in-session)', kvTable(rows)) + extras;
+  }
+
   const qSection = section('Query parameters', `<table class="det-table">${paramRows(r.queryParams)}</table>`);
   const bSection = (r.bodyParams && Object.keys(r.bodyParams).length)
     ? section('Body parameters', `<table class="det-table">${paramRows(r.bodyParams)}</table>`) : '';
@@ -910,12 +933,11 @@ function cardInnerHtml(r) {
       <span class="ev-method">${escapeHtml(r.method)}</span>
       ${idChip ? `<span class="ev-tid" title="${escapeHtml(idTitle)}">${escapeHtml(idChip)}</span>` : ''}
       ${r._source === 'worker' ? '<span class="ev-src" title="Deep Capture: seen only via webRequest, not the DevTools network panel — dispatched from a service worker / cloud edge">⚡ service worker</span>' : ''}
-      ${r._taggrs ? `<span class="ev-src" title="Decrypted from a taggrs custom-loader (AES-256-GCM) envelope — this hit was hidden as an opaque blob sent to ${escapeHtml(r._taggrs.host)}">🔓 taggrs</span>` : ''}
       <span class="ev-caret" title="Show all parameters">▼</span>
     </div>
     <div class="ev-name">${escapeHtml(eventName(r) || '(no event name)')}</div>
     ${dl ? `<div class="ev-dl" title="document location (dl)">${escapeHtml(dl)}</div>` : ''}
-    <div class="ev-pills">${providerPills(r)}${flagPills(r)}${consentPills(r)}</div>
+    <div class="ev-pills">${providerPills(r)}${taggrsPill(r)}${flagPills(r)}${consentPills(r)}</div>
     ${summaryPills(r) ? `<div class="ev-summary">${summaryPills(r)}</div>` : ''}
     ${detailHtml(r)}`;
 }
@@ -1088,8 +1110,10 @@ function decodeTaggrsAndCommit(block, req, ts, source, key) {
       const r = parseRequest(dec.url, dec.postData, block.navUrl);   // respects per-provider capture switches
       if (!r) return;
       r._source = source;
-      r._taggrs = { host: dec.host, clientId: dec.clientId };
-      commitRecord(block, r, { url: dec.url, method: dec.method, postData: dec.postData }, ts);
+      r._taggrs = { host: dec.host, clientId: dec.clientId, endpoint: dec.endpoint, cipherU: dec.cipherU, cipherB: dec.cipherB };
+      // Pass the opaque envelope endpoint as the "original" so the detail shows
+      // the encrypted destination; effectiveUrl already holds the decrypted URL.
+      commitRecord(block, r, { url: dec.endpoint, method: dec.method, postData: dec.postData }, ts);
     })
     .catch(() => { /* wrong key / auth-tag failure → not decodable, drop silently */ });
 }

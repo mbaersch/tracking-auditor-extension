@@ -75,6 +75,10 @@ test('decodeTaggrsRequest decrypts the real envelope to the hidden GA4 scroll hi
   assert.match(dec.url, /[?&]en=scroll(&|$)/);
   assert.match(dec.url, /[?&]tid=G-RLBMR4Z9MK(&|$)/);
   assert.match(dec.url, /[?&]epn\.percent_scrolled=90(&|$)/);
+  // The opaque original is carried alongside for the "encrypted vs decrypted" card.
+  assert.equal(dec.endpoint, POST_URL);
+  assert.equal(dec.cipherU, ENVELOPE_U);
+  assert.equal(dec.cipherB, null);
 });
 
 test('a wrong key fails the GCM auth tag (rejects, never returns garbage)', async () => {
