@@ -28,6 +28,7 @@
       --card-snapchat:  #fef8d9;   /* yellow — distinct from every other tint */
       --card-hubspot:   #ffe9e2;   /* coral (sprocket) — HubSpot orange */
       --card-criteo:    #ece9fe;   /* indigo/periwinkle (CI #3d1ef8) — violet-leaning, off Meta's sky & LinkedIn's azure */
+      --card-taboola:   #e0f2f5;   /* deep-cyan tint — native-ads block, distinct from Bing's muted teal */
       --text: #1e293b;
       --text-muted: #64748b;
       --text-faint: #94a3b8;
@@ -59,6 +60,7 @@
       --card-snapchat:  #33300d;   /* yellow */
       --card-hubspot:   #3a2118;   /* coral  */
       --card-criteo:    #1e1a33;   /* indigo/violet */
+      --card-taboola:   #0f2a2f;   /* deep-cyan */
         --text: #e2e8f0;
         --text-muted: #94a3b8;
         --text-faint: #64748b;
@@ -152,6 +154,7 @@
     .ev.p-snapchat { background: var(--card-snapchat); }
     .ev.p-hubspot { background: var(--card-hubspot); }
     .ev.p-criteo { background: var(--card-criteo); }
+    .ev.p-taboola { background: var(--card-taboola); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
@@ -184,6 +187,7 @@
     .pill-snapchat  { background: #fffc00; color: #111; }
     .pill-hubspot   { background: #ff7a59; color: #fff; }
     .pill-criteo    { background: #3d1ef8; color: #fff; }
+    .pill-taboola   { background: #0e7490; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -244,6 +248,7 @@
         <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
         <label><input type="checkbox" data-rec="hubspot" checked> HubSpot</label>
         <label><input type="checkbox" data-rec="criteo" checked> Criteo</label>
+        <label><input type="checkbox" data-rec="taboola" checked> Taboola</label>
         <span class="ctl-hint">which services are captured (applies to new hits)</span>
       </div>
       <div class="ctl-row">
@@ -261,7 +266,7 @@
       <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>
   </header>
-  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Floodlight, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit, Snapchat, HubSpot and Criteo requests will appear here, grouped per page load.</div>
+  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Floodlight, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit, Snapchat, HubSpot, Criteo and Taboola requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
   <script type="module" src="panel.js"></script>
