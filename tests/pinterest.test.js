@@ -101,3 +101,19 @@ test('helpers work standalone', () => {
   assert.equal(extractPinterestEcommerce({ np: 'gtm' }), null);
   assert.deepEqual(extractPinterestCustomData({ value: 1, foo: 'bar' }), { foo: 'bar' });
 });
+
+// An adversarial ed can put null / non-objects in line_items[]; parsing must
+// never throw (a throw would drop the hit at the un-try/caught parse call).
+test('line_items[] with null / non-object elements does not throw', () => {
+  assert.doesNotThrow(() => extractPinterestEcommerce({ line_items: [null] }));
+  assert.doesNotThrow(() => extractPinterestEcommerce({ line_items: [null, 'x', 3] }));
+  // all-junk line_items → falls through (here: nothing else present → null)
+  assert.equal(extractPinterestEcommerce({ line_items: [null] }), null);
+  // mixed: the one real row survives, the junk is dropped
+  const mixed = extractPinterestEcommerce({ line_items: [null, { product_id: 'p1', product_price: '9.99' }] });
+  assert.equal(mixed.lineItems.length, 1);
+  assert.equal(mixed.lineItems[0].id, 'p1');
+  // and end-to-end through the public entry point
+  const ed = encodeURIComponent(JSON.stringify({ line_items: [null] }));
+  assert.doesNotThrow(() => parsePinterestRequest(`https://ct.pinterest.com/v3/?tid=26123&event=addtocart&ed=${ed}`, null));
+});

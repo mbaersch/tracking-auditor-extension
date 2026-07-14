@@ -190,3 +190,19 @@ test('helpers work standalone', () => {
   const diag = extractTiktokDiagnostics({ signal_diagnostic_labels: { raw_email: { label: 'missing' } } });
   assert.equal(diag, null);                           // only "missing" → nothing to show
 });
+
+// An adversarial pixel can put null / non-objects in contents[]; parsing must
+// never throw (a throw would drop the hit at the un-try/caught parse call).
+test('contents[] with null / non-object elements does not throw', () => {
+  assert.doesNotThrow(() => extractTiktokEcommerce({ contents: [null] }));
+  assert.doesNotThrow(() => extractTiktokEcommerce({ contents: [null, 'x', 3] }));
+  // all-junk contents → falls through to the scalar fallbacks (here: nothing)
+  assert.equal(extractTiktokEcommerce({ contents: [null] }), null);
+  // mixed: the one real row survives, the junk is dropped
+  const mixed = extractTiktokEcommerce({ contents: [null, { content_id: 'p1', price: '9.99' }] });
+  assert.equal(mixed.contents.length, 1);
+  assert.equal(mixed.contents[0].id, 'p1');
+  // and end-to-end through the public entry point (POST body)
+  const body = JSON.stringify({ event: 'ViewContent', context: { pixel: { code: 'C1' } }, properties: { contents: [null] } });
+  assert.doesNotThrow(() => parseTiktokRequest(URL_PIXEL, body));
+});

@@ -993,7 +993,9 @@ function detailHtml(r) {
       if (rows.length) extras += section('Consent', kvTable(rows));
     }
     // The full slot list makes the multi-event batching + technical exd/dis visible.
-    extras += section('OneTag events (slots p0..pN)', kvTable(r.slots.map((s) => [s.code, s.name])));
+    if (Array.isArray(r.slots) && r.slots.length) {
+      extras += section('OneTag events (slots p0..pN)', kvTable(r.slots.map((s) => [s.code, s.name])));
+    }
     if (r.sharedCookies) {
       extras += section('shared cookies (sc)', kvTable([['sc', r.sharedCookies]]));
     }
@@ -1287,7 +1289,12 @@ function currentBlock() {
 function parseRequest(url, postData, pageUrl) {
   for (const p of PARSERS) {
     if (!state.record[p.id]) continue;          // service capture switched off
-    const r = p.parse(url, postData, pageUrl);
+    // A parser fed an adversarial payload must never take down the pipeline —
+    // an uncaught throw here would drop the hit (or, on import, abort the whole
+    // file). Isolate each parser: a throw just means "not my hit".
+    let r = null;
+    try { r = p.parse(url, postData, pageUrl); }
+    catch (e) { console.warn(`[tracking-auditor] ${p.id} parser threw on`, url, e); continue; }
     if (r) return r;
   }
   return null;
@@ -1612,9 +1619,25 @@ function noteDevtoolsSeen(method, url) {
   if (pending != null) { clearTimeout(pending); pendingWr.delete(key); }  // DevTools covers it — drop the webRequest copy
 }
 
+// The origin (scheme+host+port) of a url, or null if it can't be parsed.
+function originOf(url) {
+  try { return new URL(url).origin; } catch (e) { return null; }
+}
+
 function onWebRequestEvent(msg) {
   if (!state.deepCapture || !state.recording) return;
   if (!msg || msg.kind !== 'wr-request' || !msg.url) return;
+  // Worker-dispatched hits carry tabId === -1, so background.js can't route them
+  // to the owning tab and fans them out to *every* connected panel. If two tabs
+  // are inspected at once, that would leak tab B's hits into tab A's capture.
+  // Guard it here: a fanned-out hit is only ours if its initiator origin matches
+  // the inspected page's origin (a first-party worker is same-origin with its
+  // page). If we can't confirm the match, drop it rather than cross-contaminate.
+  if (typeof msg.tabId === 'number' && msg.tabId < 0) {
+    const pageOrigin = originOf(currentBlock().navUrl || '');
+    const initiatorOrigin = originOf(msg.initiator || '');
+    if (!pageOrigin || !initiatorOrigin || pageOrigin !== initiatorOrigin) return;
+  }
   const key = reqKey(msg.method, msg.url);
   const seenExpiry = devtoolsSeen.get(key);
   if (seenExpiry != null) {
@@ -1736,8 +1759,14 @@ function loadCapture(data) {
     state.blocks.push(block);
     appendBlockDom(block);
     for (const r of (b.events || [])) {
-      block.events.push(r);
-      appendEventDom(block, r);
+      // A hand-edited or truncated capture file can carry a record the renderer
+      // doesn't expect; one bad record must not abort the whole import.
+      try {
+        block.events.push(r);
+        appendEventDom(block, r);
+      } catch (e) {
+        console.warn('[tracking-auditor] skipped an unrenderable imported record', e, r);
+      }
     }
   }
   renderFilterBar();                                       // reflect the imported services' pills (also clears stale ones)

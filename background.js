@@ -13,11 +13,13 @@
 // is shown once (DevTools wins); a hit only webRequest delivers is the invisible
 // worker hit we're hunting.
 //
-// Spike caveat: worker-dispatched requests often carry tabId === -1 (no frame
-// association) — which is *why* the page-scoped API misses them. We can't map those
-// back to a tab, so we relay them to every connected panel and let the panel filter
-// by what its DevTools feed already covered. Fine for a single inspected tab;
-// revisit before shipping if multiple tabs are inspected at once.
+// Worker-dispatched requests often carry tabId === -1 (no frame association) —
+// which is *why* the page-scoped API misses them. We can't map those back to a
+// tab, so we relay them to every connected panel. To keep one inspected tab's
+// hits out of another's capture, the panel drops a fanned-out (tabId < 0) hit
+// whose initiator origin doesn't match its own inspected page (see
+// onWebRequestEvent in panel.js) — a first-party worker is same-origin with its
+// page, so the legitimate hits we're hunting still pass.
 
 const ports = new Map(); // tabId -> Set<Port>
 
