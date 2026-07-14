@@ -470,6 +470,10 @@ function summaryPills(r) {
     if (r.flags && r.flags.cleartextEmail) {
       pills.push('<span class="pill pill-ud" title="setEmail sent the email address to Criteo in cleartext (not hashed)">cleartext email</span>');
     }
+  } else if (r.provider === 'taboola') {
+    if (r.flags && r.flags.hashedEmail) {
+      pills.push('<span class="pill pill-em" title="unified_id — SHA-256 of the email (Taboola AudienceMatch identity), sent as a query param">hashed email</span>');
+    }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
   }
@@ -509,6 +513,7 @@ const PII_SECTION_TITLE = {
   snapchat: 'PII / user data (advanced matching — incl. geo/age)',
   hubspot: 'PII / user data (identify — cleartext)',
   criteo: 'PII / user data (setEmail — cleartext)',
+  taboola: 'PII / identity (unified_id)',
 };
 
 // The one place PII surfaces in the details: every user-data field a request
@@ -968,6 +973,7 @@ function detailHtml(r) {
       if (r.consent.usPrivacy)  rows.push(['US Privacy (ccpaPs)', r.consent.usPrivacy]);
       extras += section('Consent', kvTable(rows));
     }
+    extras += piiSection(r);
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],

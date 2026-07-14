@@ -113,6 +113,29 @@ test('consent: TCF string, US-privacy and CMP surfaced (not decoded)', () => {
   assert.equal(r.consent.cmpVersion, '1');
 });
 
+// --- PII: unified_id (AudienceMatch hashed email) --------------------------
+// Real /log/3/unip hit — the SHA-256 of auditor-test@example.com rides as the flat
+// `unified_id` query param (verified: passed at event level via _tfa.push).
+const HE = '8ebbb5cd35077ac97214abd64ff4b9a1c2df520d51ec58b5c708ec1ac2f86418';
+const UNIFIED = EV(`en=lead&unified_id=${HE}`);
+
+test('unified_id: the hashed email is surfaced as a SHA-256 Email identifier', () => {
+  const r = parseTaboolaRequest(UNIFIED, null);
+  assert.ok(r.userData && r.userData.unified_id);
+  assert.equal(r.userData.unified_id.bucket, 'email');
+  assert.equal(r.userData.unified_id.hashed, true);
+  assert.equal(r.userData.unified_id.algo, 'sha256');   // 64-hex → SHA-256
+  assert.equal(r.flags.hashedEmail, true);
+  assert.equal(r.identifiers.email, 1);
+});
+
+test('an event without unified_id carries no PII', () => {
+  const r = parseTaboolaRequest(ADD_TO_CART, null);
+  assert.equal(r.userData, null);
+  assert.equal(r.flags.hashedEmail, false);
+  assert.equal(r.identifiers.email, 0);
+});
+
 // --- unknown event fallback ------------------------------------------------
 test('an unknown event code is surfaced verbatim as a custom event', () => {
   const r = parseTaboolaRequest(EV('en=some_new_thing'), null);
