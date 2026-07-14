@@ -57,7 +57,7 @@ test('viewItem (vp): id + price + revenue', () => {
   const r = parseCriteoRequest(VP, null);
   assert.equal(r.eventCode, 'vp');
   assert.deepEqual(r.items, [{ id: '28249', price: '159.9', quantity: null }]);
-  assert.deepEqual(r.revenue, { value: '159.9', currency: null });
+  assert.deepEqual(r.revenue, { value: '159.9', currency: null, computed: false }); // vp price IS the value
 });
 
 test('viewBasket (vb): item array + currency (double-encoded array survives)', () => {
@@ -65,6 +65,8 @@ test('viewBasket (vb): item array + currency (double-encoded array survives)', (
   assert.equal(r.eventCode, 'vb');
   assert.equal(r.currency, 'EUR');
   assert.deepEqual(r.items, [{ id: '28249', price: '159.9', quantity: '1' }]);
+  // Criteo sends no total; we derive it (price × qty) and mark it computed.
+  assert.deepEqual(r.revenue, { value: '159.9', currency: 'EUR', computed: true });
 });
 
 test('addToCart (ac): item array parsed', () => {
@@ -80,6 +82,8 @@ test('transaction (vc): transaction id + items', () => {
   assert.equal(r.event, 'transaction');
   assert.equal(r.transactionId, 'AUDIT-TEST-0001');
   assert.deepEqual(r.items, [{ id: '28249', price: '159.9', quantity: '1' }]);
+  // No value param on the wire — derived order total, no currency in this fixture.
+  assert.deepEqual(r.revenue, { value: '159.9', currency: null, computed: true });
 });
 
 test('lead (trackleads): kept verbatim as its own event', () => {

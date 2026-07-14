@@ -819,7 +819,10 @@ function detailHtml(r) {
     ].filter(([, v]) => v != null && v !== '');
 
     if (r.revenue) {
-      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+      const val = `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`;
+      // Criteo sends no order total — for cart/basket/transaction the value is
+      // derived (Σ items), labelled so it isn't mistaken for a sent parameter.
+      extras += section('revenue', kvTable([[r.revenue.computed ? 'value (computed — Σ items)' : 'value', val]]));
     }
     if (r.items && r.items.length) {
       const rows = r.items.map((it, i) => [`item ${i + 1}`,
