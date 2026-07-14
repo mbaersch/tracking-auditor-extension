@@ -11,6 +11,7 @@ GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
 - First-party sGTM / Google Tag Gateway (`/g/collect` / `/collect` with `v=2` & `tid=G-…`)
 - **Stape Custom Loader** (GA4 path base64-encoded inside a query parameter)
+- **taggrs Custom Loader** (AES-256-GCM-encrypted envelope, decrypted in-session with the loader's own key)
 - **Plaintext custom delivery paths** (cryptic path without `collect`, but `v=2` & `tid=G-…` & `en`)
 
 Meta (Facebook) Pixel:
@@ -143,6 +144,10 @@ If you want to modify the extension or run an unreleased version, load it unpack
 5. Pin the extension if you want it in the toolbar
 
 ## Changelog
+
+### 0.10.0
+- **taggrs Custom Loader decryption**: taggrs (a Stape alternative) proxies GTM/gtag through a first-party sGTM host and encrypts the real request, so the network tab shows only an opaque envelope (a `{"m","u"}` POST, or `?p=<iv>:<ct>`). The cipher is AES-256-GCM with the key hardcoded in the loader JS, so the panel sniffs that key once per host from the loader body (read via the DevTools response body — no new permission), decrypts the envelope in-session, and runs the plaintext through the normal parser registry. The hidden hit then shows up as an ordinary GA4/… card marked with a **taggrs** transport pill (the same slot as Stape b64); its detail shows the decrypted request alongside the encrypted original (proxy endpoint + the `iv:ct` cipher blobs). Hits that race ahead of the loader key are buffered and flushed once it lands. POST envelopes only — the `?p=` GET transport carries proxied scripts, not hits.
+- **First-party is positively confirmed, never inferred**: previously any hit whose host wasn't on a provider's vendor allowlist was labelled "first-party" by elimination — which mislabelled `pagead2.googlesyndication.com` (a Google host that was missing from the Ads list) and any GA4 / Meta / UET hit routed through a foreign sGTM vendor domain. A hit is now first-party only when its host shares the **inspected page's** registrable domain (eTLD+1, compared against the real page URL — not the hit's own `dl`, which it can set to anything). Otherwise the transport is "unknown" and wears no pill, because an unconfirmed transport shouldn't claim one — tracking behaves differently tomorrow than today. `googlesyndication.com` is now recognised as a Google Ads host.
 
 ### 0.9.0
 - **HubSpot** (10th provider): detects HubSpot's tracking surfaces — the `track(-<region>).hubspot.com` beacons `/__ptq.gif` (page view), `/__ptbe.gif` (custom behavioral event, name in `n`, properties as `_<name>`) and `/__ptc.gif` (click / interaction, target described by `_hs_*`), plus the **Collected Forms** submit `POST` to `forms(-<region>).hscollectedforms.net/collected-forms/submit/form`. The account is the hub id (`a` / `portalId`). Identity data travels in **cleartext** (HubSpot does not hash) — via the doubly URL-encoded `i` param on any beacon, or as `contactFields` (email / name / phone) in the form submit — so the PII block reports it honestly as "not hashed", and the form's submitted `formValues` are shown verbatim. Loader/config/analytics scripts and form counters are not tracking hits and are ignored. Coral pill.
