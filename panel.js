@@ -7,6 +7,7 @@ import { parseUetRequest } from './lib/uet.js';
 import { parseTiktokRequest } from './lib/tiktok.js';
 import { parsePinterestRequest } from './lib/pinterest.js';
 import { parseGoogleAdsRequest } from './lib/googleads.js';
+import { parseFloodlightRequest } from './lib/floodlight.js';
 import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } from './lib/linkedin.js';
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
@@ -36,6 +37,9 @@ const PARSERS = [
   // GA4 stays ahead of Google Ads: GA4 only claims /g/collect, Ads owns
   // /ccm/collect (tid=AW-) and the conversion/remarketing/form-data endpoints.
   { id: 'googleads', parse: parseGoogleAdsRequest },
+  // Floodlight sits right after Ads: same DoubleClick infrastructure, but a
+  // distinct endpoint (ad.doubleclick.net/activity, *.fls.doubleclick.net).
+  { id: 'floodlight', parse: parseFloodlightRequest },
   { id: 'linkedin', parse: parseLinkedInRequest },
   { id: 'reddit', parse: parseRedditRequest },
   { id: 'snapchat', parse: parseSnapchatRequest },
@@ -46,8 +50,8 @@ const PARSERS = [
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -57,8 +61,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -87,6 +91,7 @@ function eventName(r) {
   if (r.provider === 'tiktok') return r.event;
   if (r.provider === 'pinterest') return r.event;
   if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
+  if (r.provider === 'floodlight') return r.event || (r.flags && r.flags.sales ? 'sales' : 'counter'); // type/cat is the advertiser's own name
   if (r.provider === 'linkedin') return r.eventName;
   if (r.provider === 'reddit')   return r.event;
   if (r.provider === 'snapchat') return r.event;
@@ -101,6 +106,7 @@ function accountId(r) {
   if (r.provider === 'tiktok') return r.code;
   if (r.provider === 'pinterest') return r.tid;
   if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
+  if (r.provider === 'floodlight') return r.advertiserId; // src — Floodlight config / advertiser id
   if (r.provider === 'linkedin') return r.pid;
   if (r.provider === 'reddit')   return r.pixelId;
   if (r.provider === 'snapchat') return r.pixelId;
@@ -114,6 +120,7 @@ function accountTitle(r) {
   if (r.provider === 'tiktok') return 'Pixel Code';
   if (r.provider === 'pinterest') return 'Tag ID (tid)';
   if (r.provider === 'googleads') return 'Conversion ID (AW)';
+  if (r.provider === 'floodlight') return 'Floodlight config (src)';
   if (r.provider === 'linkedin') return 'Partner ID (pid)';
   if (r.provider === 'reddit')   return 'Pixel ID (id)';
   if (r.provider === 'snapchat') return 'Pixel ID (pid)';
@@ -122,7 +129,7 @@ function accountTitle(r) {
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -173,6 +180,13 @@ function providerPills(r) {
     if (r.transport === 'first-party') {
       pills.push('<span class="pill pill-custom" title="sGTM-proxied Ads endpoint on the site&#39;s own registrable domain (page eTLD+1 == host eTLD+1)">first-party</span>');
     }
+    return pills.join('');
+  }
+  if (r.provider === 'floodlight') {
+    const pills = ['<span class="pill pill-floodlight" title="Google Marketing Platform Floodlight (CM360 / DV360) — ad.doubleclick.net/activity + *.fls.doubleclick.net/activityi">Floodlight</span>'];
+    pills.push(r.flags && r.flags.sales
+      ? '<span class="pill pill-event" title="a sales activity (dc_pre=…;cost / qty present) — a conversion with value">sales</span>'
+      : '<span class="pill pill-event" title="a counter activity — a page/action count, no monetary value">counter</span>');
     return pills.join('');
   }
   if (r.provider === 'linkedin') {
@@ -276,6 +290,26 @@ function flagPills(r) {
     if (f.isEu) out.push('<span class="pill pill-consent-info" title="dma=1 — EU/EEA consent context">EU</span>');
     if (r._transports && r._transports.length > 1) {
       out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
+    }
+    return out.join('');
+  }
+  if (r.provider === 'floodlight') {
+    const f = r.flags || {};
+    if (r.group) out.push(`<span class="pill pill-ee" title="activity GROUP tag (type) — advertiser-defined">group: ${escapeHtml(r.group)}</span>`);
+    if (r.activityTag) out.push(`<span class="pill pill-event" title="activity tag (cat) — advertiser-defined">tag: ${escapeHtml(r.activityTag)}</span>`);
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="cost / value on the sales activity">revenue: ${amount}</span>`);
+    }
+    if (r.customVars) out.push(`<span class="pill pill-ep" title="custom Floodlight variables: ${escapeHtml(Object.keys(r.customVars).join(', '))}">u ×${Object.keys(r.customVars).length}</span>`);
+    // Purpose markers read off the parameter set (see lib/floodlight.js): a fire
+    // carrying gcl* click-linking is a Google Ads / Signals remarketing signal
+    // riding the Floodlight endpoint, not a classic advertiser counter.
+    if (f.googleAdsLinked) out.push(`<span class="pill pill-em" title="gcl* click-linking present (gclaw/gclgs/gclst/gcllp)${r.gclid ? ' — gclid ' + escapeHtml(r.gclid) : ''} — fired by gtag's Google Ads / Signals integration, not a CM360 conversion counter">Ads-linked</span>`);
+    if (f.enhancedConversions) out.push('<span class="pill pill-em" title="em / user_data_mode — enhanced-conversions context (hashed user-data marker)">EC</span>');
+    if (r.consent && r.consent.npa === '1') out.push('<span class="pill pill-consent-info" title="npa=1 — non-personalised ads">NPA</span>');
+    if (r._transports && r._transports.length > 1) {
+      out.push(`<span class="pill pill-ud" title="mirror requests folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
     }
     return out.join('');
   }
@@ -395,6 +429,10 @@ function summaryPills(r) {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Enhanced conversions user data present (hashed em token)">enhanced match</span>');
     }
+  } else if (r.provider === 'floodlight') {
+    if (r.flags && r.flags.cleartextEmail) {
+      pills.push('<span class="pill pill-ud" title="a custom Floodlight variable (u*) carries an email address in cleartext">cleartext email</span>');
+    }
   } else if (r.provider === 'linkedin') {
     if (r.flags && r.flags.hashedEmail) {
       pills.push('<span class="pill pill-em" title="Enhanced conversions: hashed email (hem) sent in the /wa/ body">enhanced conv.</span>');
@@ -444,6 +482,7 @@ const PII_SECTION_TITLE = {
   tiktok: 'PII / user data (context.user)',
   pinterest: 'PII / enhanced match (pd)',
   googleads: 'PII / enhanced conversions (em)',
+  floodlight: 'PII / custom variables (u*)',
   linkedin: 'PII / enhanced conversions (hem)',
   reddit: 'PII / user data (advanced + auto matching)',
   snapchat: 'PII / user data (advanced matching — incl. geo/age)',
@@ -687,6 +726,46 @@ function detailHtml(r) {
       }
       if (r.consent.dma != null) rows.push(['dma', r.consent.dma]);
       if (r.consent.npa != null) rows.push(['npa', r.consent.npa]);
+      extras += section('Consent', kvTable(rows));
+    }
+  } else if (r.provider === 'floodlight') {
+    meta = [
+      ['event (type/cat)', r.event],
+      ['activity kind', r.flags && r.flags.sales ? 'sales (has value)' : 'counter'],
+      ['floodlight config (src)', r.advertiserId],
+      ['activity group (type)', r.group],
+      ['activity tag (cat)', r.activityTag],
+      ['ordinal (ord)', r.ord],
+      ['quantity (qty)', r.quantity],
+      ['DoubleClick id (auiddc)', r.dcUserId],
+      ['Google Ads click (gclaw)', r.gclid],
+      ['fired via', r.flags && r.flags.googleAdsLinked ? 'Google Ads / Signals (gtag)' : (r.customVars ? 'advertiser activity (custom vars)' : null)],
+      ['transport', r.transport], ['method', r.method],
+      ['page url (~oref)', r.pageUrl],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+    }
+    if (r._transports && r._transports.length > 1) {
+      extras += section(`transports (${r._transports.length})`, kvTable([['mirrors', r._transports.join(' · ')]]));
+    }
+    extras += piiSection(r);
+    if (r.customVars && Object.keys(r.customVars).length) {
+      extras += section(`custom variables (${Object.keys(r.customVars).length})`, `<table class="det-table">${paramRows(r.customVars)}</table>`);
+    }
+    if (r.consent) {
+      const rows = [];
+      if (r.consent.gcs) rows.push(['gcs', r.consent.gcs]);
+      if (r.consent.gcd) rows.push(['gcd', r.consent.gcd]);
+      if (Array.isArray(r.consent.gcdDecoded)) {
+        for (const p of r.consent.gcdDecoded) rows.push([p.purpose, p.text]);
+      }
+      if (r.consent.dma != null) rows.push(['dma', r.consent.dma]);
+      if (r.consent.npa != null) rows.push(['npa', r.consent.npa]);
+      if (r.consent.gpp) rows.push(['gpp', r.consent.gpp]);
+      if (r.consent.gppSid) rows.push(['gpp_sid', r.consent.gppSid]);
       extras += section('Consent', kvTable(rows));
     }
   } else if (r.provider === 'linkedin' && r._endpoint === 'wa') {

@@ -22,6 +22,7 @@
       --card-pinterest: #fef2f2;   /* red    */
       --card-tiktok:    #fdf4ff;   /* fuchsia */
       --card-googleads: #ffe6cc;   /* peach — a second Google warm, well clear of Meta's blue */
+      --card-floodlight: #e6f7ed;  /* mint green (DoubleClick) — sits by Ads but clear of its peach */
       --card-linkedin:  #e7f3fb;   /* azure (a touch cyaner than Meta's sky) */
       --card-reddit:    #ffe8de;   /* orangered — redder than GA4's warm / Ads' peach */
       --card-snapchat:  #fef8d9;   /* yellow — distinct from every other tint */
@@ -52,6 +53,7 @@
         --card-pinterest: #2a1719;   /* red    */
         --card-tiktok:    #271a2b;   /* fuchsia */
         --card-googleads: #3a2a14;   /* peach  */
+        --card-floodlight: #12291b;  /* mint green (DoubleClick) */
         --card-linkedin:  #10222f;   /* azure  */
       --card-reddit:    #34190f;   /* orangered */
       --card-snapchat:  #33300d;   /* yellow */
@@ -144,6 +146,7 @@
     .ev.p-tiktok { background: var(--card-tiktok); }
     .ev.p-pinterest { background: var(--card-pinterest); }
     .ev.p-googleads { background: var(--card-googleads); }
+    .ev.p-floodlight { background: var(--card-floodlight); }
     .ev.p-linkedin { background: var(--card-linkedin); }
     .ev.p-reddit { background: var(--card-reddit); }
     .ev.p-snapchat { background: var(--card-snapchat); }
@@ -175,6 +178,7 @@
     .pill-tiktok   { background: #010101; color: #25f4ee; }
     .pill-pinterest { background: #e60023; color: #fff; }
     .pill-googleads { background: #b45309; color: #fff; }
+    .pill-floodlight { background: #34a853; color: #fff; }
     .pill-linkedin  { background: #0a66c2; color: #fff; }
     .pill-reddit    { background: #ff4500; color: #fff; }
     .pill-snapchat  { background: #fffc00; color: #111; }
@@ -230,6 +234,7 @@
         <span class="ctl-label">Record</span>
         <label><input type="checkbox" data-rec="ga4" checked> GA4</label>
         <label><input type="checkbox" data-rec="googleads" checked> Google Ads</label>
+        <label><input type="checkbox" data-rec="floodlight" checked> Floodlight</label>
         <label><input type="checkbox" data-rec="meta" checked> Meta</label>
         <label><input type="checkbox" data-rec="uet" checked> Bing</label>
         <label><input type="checkbox" data-rec="tiktok" checked> TikTok</label>
@@ -238,6 +243,7 @@
         <label><input type="checkbox" data-rec="reddit" checked> Reddit</label>
         <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
         <label><input type="checkbox" data-rec="hubspot" checked> HubSpot</label>
+        <label><input type="checkbox" data-rec="criteo" checked> Criteo</label>
         <span class="ctl-hint">which services are captured (applies to new hits)</span>
       </div>
       <div class="ctl-row">
@@ -255,7 +261,7 @@
       <input type="search" id="filterText" placeholder="filter by event, id (AW-…), label, parameter…" autocomplete="off">
     </div>
   </header>
-  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit, Snapchat and HubSpot requests will appear here, grouped per page load.</div>
+  <div id="empty" class="empty">Hit <b>Start &amp; Reload</b> — GA4, Google Ads, Floodlight, Meta, Bing, TikTok, Pinterest, LinkedIn, Reddit, Snapchat, HubSpot and Criteo requests will appear here, grouped per page load.</div>
   <div id="blocks"></div>
 
   <script type="module" src="panel.js"></script>

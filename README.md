@@ -1,11 +1,11 @@
 # Tracking Auditor Extension
 
-![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, LinkedIn, Reddit, Snapchat and HubSpot hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
+![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, Floodlight, LinkedIn, Reddit, Snapchat, HubSpot and Criteo hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
 
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
-**TikTok**, **Pinterest**, **Google Ads**, **LinkedIn**, **Reddit**, **Snapchat**
-and **HubSpot** requests of the inspected tab — including transports that common
-debuggers miss:
+**TikTok**, **Pinterest**, **Google Ads**, **Floodlight**, **LinkedIn**, **Reddit**,
+**Snapchat**, **HubSpot** and **Criteo** requests of the inspected tab — including
+transports that common debuggers miss:
 
 GA4:
 - Standard GA4 (`google-analytics.com` / `analytics.google.com`, `/g/collect`)
@@ -57,6 +57,18 @@ Google Ads:
   dynamic-remarketing product `data` (`google_business_vertical`/`id`), line items,
   and `gcs`/`gcd` consent. Pure Privacy-Sandbox / telemetry pings are filtered out.
 
+Floodlight (Google Marketing Platform — CM360 / DV360):
+- The same DoubleClick infrastructure as Google Ads, but a distinct endpoint with
+  **matrix parameters** (`;`-delimited in the path, not a query string): the counter
+  `ad.doubleclick.net/activity` and its image mirror `<src>.fls.doubleclick.net/activityi`,
+  which share `(src,type,cat,ord)` and are folded into a **single card**.
+- Reads the Floodlight config id (`src`), the advertiser-defined activity **group** (`type`)
+  and **tag** (`cat`) verbatim, the ordinal (`ord`), tells a **counter** from a **sales**
+  activity (`cost`/`qty` → revenue), the custom variables (`u1..uN` — page url, product id,
+  …), the DoubleClick id (`auiddc`), the `~oref` page url, and `gcs`/`gcd`/`dma`/`npa`/`gpp`
+  consent. Custom vars are opaque, so only an unmistakable **cleartext email** (`@`) in a
+  `u*` is flagged as PII — hash-shaped ids are left alone to avoid false alarms.
+
 LinkedIn Insight Tag:
 - Standard beacon (`px.ads.linkedin.com/collect`), with the `px4` mirror (which adds
   the encrypted-IP `e_ipv6`) folded into a **single card** — the richer mirror wins.
@@ -98,6 +110,20 @@ HubSpot:
   payload in the doubly-encoded `i` param on any beacon, or the form's `contactFields`
   (email / name / phone). The PII block reports it honestly as **"not hashed"**. Loader/
   config/analytics scripts and form counters are not tracking hits and are ignored.
+
+Criteo:
+- OneTag event beacon (`sslwidget.criteo.com/event`). The account is the Criteo id (`a`).
+  Identity-sync (`gum.criteo.com`) and loader (`dynamic.criteo.com`) requests are not
+  tracking hits and are ignored.
+- Decodes the `p0..pN` event slots — a hit bundles several (`exd`/`dis` technical, plus the
+  real event: `vh` view home, `vl` view list, `vp` view item, `vb` view basket, `ac` add to
+  cart, `vc` transaction, `trackleads` lead, …). The primary event is surfaced; unknown codes
+  are kept verbatim. Reads the (double-encoded) item array (`id`/`price`/`quantity`), the
+  category, the transaction id, and derives a revenue total (Σ price × quantity, marked
+  **computed** since Criteo sends no total) with the `c` currency.
+- **`setEmail` (`ce`) ships the email address in CLEARTEXT** (not hashed) — surfaced as a
+  "cleartext email" indicator and reported in the PII block as "not hashed". The shared
+  cross-vendor cookies (`sc`, e.g. `fbp`) and `cs`/`gpp` consent are surfaced too.
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, **newest first**, with
@@ -146,6 +172,8 @@ If you want to modify the extension or run an unreleased version, load it unpack
 ## Changelog
 
 ### 0.10.0
+- **Floodlight** (Google Marketing Platform — CM360 / DV360): detects Floodlight activity fires — the counter `ad.doubleclick.net/activity` and its image mirror `<src>.fls.doubleclick.net/activityi`, which carry **matrix parameters** (`;`-delimited in the path, not a query string) and share `(src,type,cat,ord)`, so the two are folded into a **single card**. Reads the Floodlight config id (`src`), the advertiser-defined activity group (`type`) and tag (`cat`) verbatim, the ordinal (`ord`), tells a **counter** from a **sales** activity (`cost`/`qty` → revenue), the custom variables (`u1..uN`), the `~oref` page url, the DoubleClick id (`auiddc`) and `gcs`/`gcd`/`dma`/`npa`/`gpp` consent. Custom vars are opaque, so only an unmistakable cleartext email in a `u*` is flagged as PII (hash-shaped ids are left alone). Positioned right after Google Ads (same DoubleClick infrastructure). Mint-green pill.
+- **Criteo** (OneTag): detects the `sslwidget.criteo.com/event` beacon (account = `a`; the `gum.`/`dynamic.` identity-sync & loader requests are ignored). Decodes the `p0..pN` event slots (technical `exd`/`dis` plus the real event — `vh`/`vl`/`vp`/`vb`/`ac`/`vc`/`trackleads`/…, unknown codes kept verbatim), the double-encoded item array (`id`/`price`/`quantity`), the category, the transaction id, and a **computed** revenue total (Σ price × quantity — Criteo sends no total) with the `c` currency. **`setEmail` (`ce`) ships the email in CLEARTEXT** — surfaced as a "cleartext email" indicator and reported in the PII block as "not hashed"; the shared cross-vendor cookies (`sc`, e.g. `fbp`) and `cs`/`gpp` consent are surfaced too. Criteo-blue card tint.
 - **taggrs Custom Loader decryption**: taggrs (a Stape alternative) proxies GTM/gtag through a first-party sGTM host and encrypts the real request, so the network tab shows only an opaque envelope (a `{"m","u"}` POST, or `?p=<iv>:<ct>`). The cipher is AES-256-GCM with the key hardcoded in the loader JS, so the panel sniffs that key once per host from the loader body (read via the DevTools response body — no new permission), decrypts the envelope in-session, and runs the plaintext through the normal parser registry. The hidden hit then shows up as an ordinary GA4/… card marked with a **taggrs** transport pill (the same slot as Stape b64); its detail shows the decrypted request alongside the encrypted original (proxy endpoint + the `iv:ct` cipher blobs). Hits that race ahead of the loader key are buffered and flushed once it lands. POST envelopes only — the `?p=` GET transport carries proxied scripts, not hits.
 - **First-party is positively confirmed, never inferred**: previously any hit whose host wasn't on a provider's vendor allowlist was labelled "first-party" by elimination — which mislabelled `pagead2.googlesyndication.com` (a Google host that was missing from the Ads list) and any GA4 / Meta / UET hit routed through a foreign sGTM vendor domain. A hit is now first-party only when its host shares the **inspected page's** registrable domain (eTLD+1, compared against the real page URL — not the hit's own `dl`, which it can set to anything). Otherwise the transport is "unknown" and wears no pill, because an unconfirmed transport shouldn't claim one — tracking behaves differently tomorrow than today. `googlesyndication.com` is now recognised as a Google Ads host.
 
