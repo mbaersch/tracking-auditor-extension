@@ -156,6 +156,19 @@ Outbrain:
 - No hashed PII or consent signal rode the captured hits (Outbrain offers hashed
   matching in some setups; if it appears it is surfaced, never guessed).
 
+Awin (affiliate):
+- The MasterTag (`www.dwin1.com/<MID>.js`, MID = advertiser/merchant id) fires to
+  `www.awin1.com`. The **sale** (`sread.img` / `sread.php` / `sread.js`) fans out across
+  transports + whitelabel mirror domains, all sharing `(merchant, orderRef)` — folded
+  into a **single card**. Two parameter namings are handled: long (`merchant` / `amount`
+  / `ref` / `parts` / `testmode`) and short (`a` / `b` / `c` / `d` / `t`).
+- Reads the amount / currency, order reference, channel (`ch`), voucher, test flag, and
+  the commission split `parts` (`group:amount`, `|`-separated, e.g. `01:22|02:12,50`).
+- **Product-level tracking** (`basket.php`, `product_line`) is decoded into a product
+  table (id / name / price / qty / sku / commission group / category), with a derived
+  basket total. The affiliate landing tag (`alt.php`) and empty template beacons are
+  handled too. No hashed PII rides these requests. The MasterTag loader is ignored.
+
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, **newest first**, with
 event name, parameters, a user-data summary and (where present) the consent state
@@ -184,6 +197,15 @@ SHA-1 / MD5). A terse note appears only when the form contradicts the algorithm 
 service requires; cleartext (e.g. HubSpot) is stated plainly as "not hashed". Reading
 only — no hash validation.
 
+**One hit, one card.** Many services fan a single user action out across several
+mirrored requests — Google Ads across its conversion / remarketing / measurement
+endpoints, Floodlight's `activity` + `activityi`, LinkedIn's `/collect` + `px4` mirror,
+Awin's sale across `sread.img`/`php`/`js` plus whitelabel domains. Rather than list each
+as its own row, the panel **folds every mirror of one logical hit into a single card**
+(marked `×N transports`), anchored on a stable key (the conversion id, order reference,
+`src`/`type`/`cat`/`ord`, …). The stream shows *what happened*, not how many times the
+browser phoned home for it — this consolidation is a core idea of the extension.
+
 The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
@@ -203,6 +225,7 @@ If you want to modify the extension or run an unreleased version, load it unpack
 ## Changelog
 
 ### 0.10.0
+- **Awin** (affiliate): detects the Awin MasterTag's tracking (`www.awin1.com`; loader `www.dwin1.com/<MID>.js` = advertiser id). The **sale** (`sread.img`/`sread.php`/`sread.js`) fans out across transports and whitelabel mirror domains sharing `(merchant, orderRef)` → folded into one card; both the long (`merchant`/`amount`/`ref`/`parts`/`testmode`) and short (`a`/`b`/`c`/`d`/`t`) parameter namings are handled. Reads amount / currency / order reference / channel / voucher / test flag and the commission split `parts` (`group:amount`, `|`-separated). **Product-level tracking** (`basket.php` `product_line`) is decoded into a product table (id/name/price/qty/sku/commission group/category) with a derived basket total; the `alt.php` landing tag and empty template beacons are handled. No hashed PII. Off by default. Violet pill.
 - **Outbrain** (native ads): detects the `obApi` conversion pixel `GET tr.outbrain.com/unifiedPixel` (loader `amplify.outbrain.com/cp/obtp.js`; the `wave`/`my`/`sync` hosts are ignored). Account = `marketerId`. Reads the event `name` — `PAGE_VIEW` (automatic) plus other events classified as standard (Purchase / AddToCart / Lead / ViewContent / …) or custom advertiser names, verbatim — page (`dl`) / referrer / previous page (`pRef`), channel (`cht`), region (`zone`) and API / pixel build; an event fired client-side with a value carries `orderValue` / `currency` / `orderId`. No hashed PII / consent on the captured hits. Built against real posterlounge captures (PAGE_VIEW native, conversions fired via `obApi('track', …)`). Sits next to Taboola as the native-ads pair. Rose pill.
 - **Taboola** (native ads): detects the `trc.taboola.com` pixel — the page view `GET /<account>/trc/3/json?data=<JSON>` (event inside the URL-encoded `data` JSON at `data.mpvd.en`) and the events `GET /<account>/log/3/<action>?en=<event>` (view_content / add_to_cart / start_checkout / make_purchase / lead / complete_registration / …, custom names verbatim), with a conversion's flat `revenue` / `currency` / `orderid` / `quantity`. Surfaces the user id (`ui`), page / referrer and consent verbatim (TCF `tcs` shown-not-decoded, US-privacy `ccpaPs`, CMP `cbp`). Cookie/id based; Taboola's hashed-email identity (AudienceMatch `unified_id`, SHA-256 of the email) rides as a flat `unified_id` query param and is surfaced as a hashed Email in the PII block; the `pre_d_eng_tb` engagement ping is flagged as telemetry. The loader / id-sync / p3p are ignored. Deep-cyan pill.
 - **Floodlight** (Google Marketing Platform — CM360 / DV360): detects Floodlight activity fires — the counter `ad.doubleclick.net/activity` and its image mirror `<src>.fls.doubleclick.net/activityi`, which carry **matrix parameters** (`;`-delimited in the path, not a query string) and share `(src,type,cat,ord)`, so the two are folded into a **single card**. Reads the Floodlight config id (`src`), the advertiser-defined activity group (`type`) and tag (`cat`) verbatim, the ordinal (`ord`), tells a **counter** from a **sales** activity (`cost`/`qty` → revenue), the custom variables (`u1..uN`), the `~oref` page url, the DoubleClick id (`auiddc`) and `gcs`/`gcd`/`dma`/`npa`/`gpp` consent. Custom vars are opaque, so only an unmistakable cleartext email in a `u*` is flagged as PII (hash-shaped ids are left alone). Positioned right after Google Ads (same DoubleClick infrastructure). Mint-green pill.

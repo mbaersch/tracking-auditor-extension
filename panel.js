@@ -15,6 +15,7 @@ import { parseHubspotRequest } from './lib/hubspot.js';
 import { parseCriteoRequest } from './lib/criteo.js';
 import { parseTaboolaRequest } from './lib/taboola.js';
 import { parseOutbrainRequest } from './lib/outbrain.js';
+import { parseAwinRequest } from './lib/awin.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
@@ -49,6 +50,7 @@ const PARSERS = [
   { id: 'criteo', parse: parseCriteoRequest },
   { id: 'taboola', parse: parseTaboolaRequest },
   { id: 'outbrain', parse: parseOutbrainRequest },
+  { id: 'awin', parse: parseAwinRequest },
 ];
 
 const state = {
@@ -59,8 +61,8 @@ const state = {
   // the stream with retargeting/native-ads pills — the user opts in per service.
   // On update these keys are absent from stored settings, so this false default
   // wins (loadSettings only Object.assigns the keys a user actually saved).
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: false, taboola: false, outbrain: false },
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: false, taboola: false, outbrain: false, awin: false },
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true, awin: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -70,8 +72,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola', 'outbrain'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain', awin: 'Awin' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -108,6 +110,7 @@ function eventName(r) {
   if (r.provider === 'criteo')   return r.event;
   if (r.provider === 'taboola')  return r.event;
   if (r.provider === 'outbrain') return r.event;
+  if (r.provider === 'awin')     return r.shape === 'plt' ? 'product level tracking' : (r.shape === 'landing' ? 'landing' : 'sale');
 
   return r.en;
 }
@@ -125,6 +128,7 @@ function accountId(r) {
   if (r.provider === 'criteo')   return r.account;        // Criteo account (a)
   if (r.provider === 'taboola')  return r.account;        // Taboola account (numeric)
   if (r.provider === 'outbrain') return r.account;        // Outbrain marketerId
+  if (r.provider === 'awin')     return r.merchantId;     // Awin advertiser / merchant id
   return r.tid;
 }
 function accountTitle(r) {
@@ -141,10 +145,11 @@ function accountTitle(r) {
   if (r.provider === 'criteo')   return 'Criteo account (a)';
   if (r.provider === 'taboola')  return 'Taboola account';
   if (r.provider === 'outbrain') return 'Marketer ID';
+  if (r.provider === 'awin')     return 'Awin merchant (MID)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo' || r.provider === 'taboola' || r.provider === 'outbrain') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo' || r.provider === 'taboola' || r.provider === 'outbrain' || r.provider === 'awin') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -227,6 +232,13 @@ function providerPills(r) {
   if (r.provider === 'outbrain') {
     const pills = ['<span class="pill pill-outbrain" title="Outbrain Pixel — tr.outbrain.com/unifiedPixel (obApi)">Outbrain</span>'];
     if (r.flags && r.flags.pageView) pills.push('<span class="pill pill-event" title="name=PAGE_VIEW — the automatic page-view fire">page view</span>');
+    return pills.join('');
+  }
+  if (r.provider === 'awin') {
+    const SHAPE = { sale: 'sale', plt: 'product tracking', landing: 'landing' };
+    const pills = ['<span class="pill pill-awin" title="Awin affiliate — www.awin1.com (MasterTag www.dwin1.com/&lt;MID&gt;.js)">Awin</span>'];
+    pills.push(`<span class="pill pill-event" title="${r.shape === 'plt' ? 'basket.php — product-level tracking' : (r.shape === 'landing' ? 'alt.php — affiliate landing / click tag' : 'sread.img/php/js — the sale / conversion')}">${escapeHtml(SHAPE[r.shape] || r.shape)}</span>`);
+    if (r.testMode) pills.push('<span class="pill pill-consent-info" title="testmode=1 / t=1 — a test transaction (no real commission books)">test</span>');
     return pills.join('');
   }
   if (r.provider === 'hubspot') {
@@ -397,6 +409,18 @@ function flagPills(r) {
     }
     if (r.orderId) out.push(`<span class="pill pill-event" title="orderId on the conversion">order: ${escapeHtml(r.orderId)}</span>`);
     if (r.channel) out.push(`<span class="pill pill-ep" title="cht — the channel the pixel fired through">via: ${escapeHtml(r.channel)}</span>`);
+    return out.join('');
+  }
+  if (r.provider === 'awin') {
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="${r.revenue.computed ? 'derived basket total (Σ price×qty)' : 'sale amount'}">revenue: ${amount}${r.revenue.computed ? ' *' : ''}</span>`);
+    }
+    if (r.orderRef) out.push(`<span class="pill pill-event" title="order reference (ref / c / orderRef)">ref: ${escapeHtml(r.orderRef)}</span>`);
+    if (Array.isArray(r.products)) out.push(`<span class="pill pill-ep" title="products in the PLT basket (product_line)">items ×${r.products.length}</span>`);
+    if (Array.isArray(r.parts) && r.parts.length > 1) out.push(`<span class="pill pill-ep" title="commission groups (parts / d): ${escapeHtml(r.parts.map(p => p.group + ':' + p.amount).join(' · '))}">${r.parts.length} groups</span>`);
+    if (r.channel) out.push(`<span class="pill pill-ep" title="channel (ch): aw=Awin, na=not attributed, …">ch: ${escapeHtml(r.channel)}</span>`);
+    if (r._transports && r._transports.length > 1) out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
     return out.join('');
   }
   if (r.provider === 'hubspot') {
@@ -1016,6 +1040,40 @@ function detailHtml(r) {
       const rows = [['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]];
       if (r.orderId) rows.push(['order id', r.orderId]);
       extras += section('conversion', kvTable(rows));
+    }
+  } else if (r.provider === 'awin') {
+    meta = [
+      ['type', r.shape === 'plt' ? 'product-level tracking (basket.php)' : (r.shape === 'landing' ? 'affiliate landing (alt.php)' : 'sale / conversion (sread)')],
+      ['Awin merchant (MID)', r.merchantId],
+      ['order reference', r.orderRef],
+      ['amount', r.revenue && !r.revenue.computed ? `${r.revenue.value}${r.currency ? ' ' + r.currency : ''}` : null],
+      ['channel (ch)', r.channel],
+      ['voucher (vc)', r.voucher],
+      ['test mode', r.testMode ? 'yes (no real commission)' : null],
+      ['tracking type (tt)', r.trackingType], ['tracking version (tv)', r.trackingVersion],
+      ['click checksum (cks)', r.clickChecksum],
+      ['transport', r.transport], ['method', r.method],
+      ['page / landing url', r.pageUrl || r.relayedUrl],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (Array.isArray(r.parts) && r.parts.length) {
+      extras += section('commission groups (parts)', kvTable(r.parts.map((p) => [p.group, p.amount != null ? p.amount : ''])));
+    }
+    if (r.revenue && r.revenue.computed) {
+      extras += section('basket total', kvTable([['value (computed — Σ price×qty)', r.revenue.value]]));
+    }
+    if (Array.isArray(r.products) && r.products.length) {
+      const rows = r.products.map((p, i) => {
+        const bits = [p.id ? `#${p.id}` : null, p.sku ? `sku ${p.sku}` : null,
+          p.price ? `${p.price}` : null, p.quantity ? `×${p.quantity}` : null,
+          p.commissionGroup ? `grp ${p.commissionGroup}` : null, p.category || null].filter(Boolean).join('  ·  ');
+        return [`${i + 1}. ${p.name || p.id || '?'}`, bits];
+      });
+      extras += section(`products (${r.products.length})`, kvTable(rows));
+    }
+    if (r._transports && r._transports.length > 1) {
+      extras += section(`transports (${r._transports.length})`, kvTable([['mirrors', r._transports.join(' · ')]]));
     }
   } else {
     meta = [
