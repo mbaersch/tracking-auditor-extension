@@ -12,6 +12,7 @@ import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
 import { parseHubspotRequest } from './lib/hubspot.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
+import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
 
 const recordBtn = document.getElementById('recordBtn');
@@ -48,6 +49,8 @@ const state = {
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
+  taggrsKeys: {},                                          // sGTM host → AES key sniffed from the taggrs loader body (decrypts its envelopes)
+  taggrsPending: {},                                        // sGTM host → [{block,req,ts,source}] hits that raced ahead of the loader key
 };
 
 // Filter pills are built from this order; only enabled or already-seen services
@@ -62,6 +65,9 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+function hostOf(url) { try { return new URL(url).host; } catch (e) { return ''; } }
+function pathOf(url) { try { return new URL(url).pathname; } catch (e) { return ''; } }
 
 function totalEvents() {
   return state.blocks.reduce((n, b) => n + b.events.length, 0);
@@ -904,6 +910,7 @@ function cardInnerHtml(r) {
       <span class="ev-method">${escapeHtml(r.method)}</span>
       ${idChip ? `<span class="ev-tid" title="${escapeHtml(idTitle)}">${escapeHtml(idChip)}</span>` : ''}
       ${r._source === 'worker' ? '<span class="ev-src" title="Deep Capture: seen only via webRequest, not the DevTools network panel — dispatched from a service worker / cloud edge">⚡ service worker</span>' : ''}
+      ${r._taggrs ? `<span class="ev-src" title="Decrypted from a taggrs custom-loader (AES-256-GCM) envelope — this hit was hidden as an opaque blob sent to ${escapeHtml(r._taggrs.host)}">🔓 taggrs</span>` : ''}
       <span class="ev-caret" title="Show all parameters">▼</span>
     </div>
     <div class="ev-name">${escapeHtml(eventName(r) || '(no event name)')}</div>
@@ -993,6 +1000,7 @@ function onRequest(harEntry) {
   if (isServiceWorkerPhantom(harEntry)) return;
   const req = harEntry && harEntry.request;
   if (!req || !req.url) return;
+  captureTaggrsKey(harEntry);                     // sniff the loader key from JS bodies (one-time per host)
   const ts = harEntry.startedDateTime ? new Date(harEntry.startedDateTime).getTime() : Date.now();
   // Deep Capture dedup: remember that DevTools saw this hit (and drop any pending
   // webRequest copy of it). A hit both sources see is shown once — via DevTools,
@@ -1028,7 +1036,70 @@ function ingestRequest(req, ts, source) {
     parseLinkedInWaRequest(req.url, req.postData)
       .then(rec => { if (rec) { rec._source = source; commitRecord(currentBlock(), rec, req, ts); } })
       .catch(() => {});
+    return;
   }
+  // Async side-path: a taggrs custom-loader POST envelope hides the real hit as an
+  // AES-256-GCM blob. Decrypt it in-session with the key sniffed from the loader
+  // body, then run the plaintext through the normal registry. GET ?p= blobs are
+  // proxied scripts (huge, no body) — skip them; only POST envelopes carry hits.
+  if (req.postData && isTaggrsRequest(req.url, req.postData)) {
+    handleTaggrs(block, req, ts, source);
+  }
+}
+
+// Read a JS response body once per host and, if it's a taggrs loader, cache its
+// hardcoded AES key. Flushes any hits that arrived before the key was known.
+function captureTaggrsKey(harEntry) {
+  const res = harEntry.response;
+  const mime = (res && res.content && res.content.mimeType) || '';
+  if (!/javascript/i.test(mime)) return;
+  const url = harEntry.request && harEntry.request.url;
+  const host = hostOf(url);
+  if (!host || state.taggrsKeys[host]) return;              // unknown or already keyed
+  if (!/^\/[a-z0-9_-]+(\.js)?$/i.test(pathOf(url))) return; // plausible loader path only
+  try {
+    harEntry.getContent((content) => {
+      if (!content || state.taggrsKeys[host] || !looksLikeTaggrsLoader(content)) return;
+      const key = extractTaggrsKey(content);
+      if (!key) return;
+      state.taggrsKeys[host] = key;
+      flushTaggrsPending(host);
+    });
+  } catch (e) { /* getContent unavailable on this entry */ }
+}
+
+// Decrypt a taggrs envelope and commit the plaintext hit, or buffer it until the
+// loader key for its host is captured (the loader usually loads first, but the
+// getContent read is async so an early hit can race ahead).
+function handleTaggrs(block, req, ts, source) {
+  const host = hostOf(req.url);
+  const key = state.taggrsKeys[host];
+  if (!key) {
+    (state.taggrsPending[host] || (state.taggrsPending[host] = [])).push({ block, req, ts, source });
+    return;
+  }
+  decodeTaggrsAndCommit(block, req, ts, source, key);
+}
+
+function decodeTaggrsAndCommit(block, req, ts, source, key) {
+  decodeTaggrsRequest(req.url, req.postData, key)
+    .then((dec) => {
+      if (!dec) return;
+      const r = parseRequest(dec.url, dec.postData, block.navUrl);   // respects per-provider capture switches
+      if (!r) return;
+      r._source = source;
+      r._taggrs = { host: dec.host, clientId: dec.clientId };
+      commitRecord(block, r, { url: dec.url, method: dec.method, postData: dec.postData }, ts);
+    })
+    .catch(() => { /* wrong key / auth-tag failure → not decodable, drop silently */ });
+}
+
+function flushTaggrsPending(host) {
+  const q = state.taggrsPending[host];
+  const key = state.taggrsKeys[host];
+  if (!q || !q.length || !key) return;
+  state.taggrsPending[host] = [];
+  for (const p of q) decodeTaggrsAndCommit(p.block, p.req, p.ts, p.source, key);
 }
 
 // Stamp, transport-collapse and append a parsed record. Shared by the synchronous
