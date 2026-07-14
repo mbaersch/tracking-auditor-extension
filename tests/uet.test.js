@@ -41,6 +41,13 @@ test('UET custom conversion: category – action name, value and revenue', () =>
   assert.equal(r.flags.revenue, true);
 });
 
+test('a named evt (pageHide) is the event name, not "custom event"', () => {
+  const r = parseUetRequest('https://bat.bing.com/actionp/0?ti=111111111111&tm=gtm002&Ver=2&mid=d1010077-57cc-4186-83c6-c3a97845dfb6&bo=5&sid=6db87fb07ea211f19b05c353b94c66ca&vid=eb4791d0cd0d11efbf3d29deb84731de&vids=0&msclkid=N&evt=pageHide&asc=G', null);
+  assert.ok(r);
+  assert.equal(r.evt, 'pageHide');
+  assert.equal(r.eventName, 'pageHide');   // evt itself names it — no ec/ea present
+});
+
 test('an empty gv= is no revenue, not a zero-value one', () => {
   const r = parseUetRequest('https://bat.bing.com/action/0?ti=111111111111&evt=custom&ec=cat&ea=act&gv=&gc=EUR', null);
   assert.ok(r);
