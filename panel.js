@@ -14,6 +14,7 @@ import { parseSnapchatRequest } from './lib/snapchat.js';
 import { parseHubspotRequest } from './lib/hubspot.js';
 import { parseCriteoRequest } from './lib/criteo.js';
 import { parseTaboolaRequest } from './lib/taboola.js';
+import { parseOutbrainRequest } from './lib/outbrain.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
@@ -47,13 +48,14 @@ const PARSERS = [
   { id: 'hubspot', parse: parseHubspotRequest },
   { id: 'criteo', parse: parseCriteoRequest },
   { id: 'taboola', parse: parseTaboolaRequest },
+  { id: 'outbrain', parse: parseOutbrainRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -63,8 +65,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola', 'outbrain'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -100,6 +102,7 @@ function eventName(r) {
   if (r.provider === 'hubspot')  return r.event;
   if (r.provider === 'criteo')   return r.event;
   if (r.provider === 'taboola')  return r.event;
+  if (r.provider === 'outbrain') return r.event;
 
   return r.en;
 }
@@ -116,6 +119,7 @@ function accountId(r) {
   if (r.provider === 'hubspot')  return r.accountId;      // hub / portal id (a)
   if (r.provider === 'criteo')   return r.account;        // Criteo account (a)
   if (r.provider === 'taboola')  return r.account;        // Taboola account (numeric)
+  if (r.provider === 'outbrain') return r.account;        // Outbrain marketerId
   return r.tid;
 }
 function accountTitle(r) {
@@ -131,10 +135,11 @@ function accountTitle(r) {
   if (r.provider === 'hubspot')  return 'Hub ID (a)';
   if (r.provider === 'criteo')   return 'Criteo account (a)';
   if (r.provider === 'taboola')  return 'Taboola account';
+  if (r.provider === 'outbrain') return 'Marketer ID';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo' || r.provider === 'taboola') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo' || r.provider === 'taboola' || r.provider === 'outbrain') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -212,6 +217,12 @@ function providerPills(r) {
     const pills = ['<span class="pill pill-taboola" title="Taboola Pixel — trc.taboola.com (/trc/3/json page view · /log/3 events)">Taboola</span>'];
     if (r.shape === 'pageview') pills.push('<span class="pill pill-event" title="/trc/3/json — the page-view pixel (event in data.mpvd.en)">page view</span>');
     if (r.flags && r.flags.engagement) pills.push('<span class="pill pill-consent-info" title="en=pre_d_eng_tb — time-on-site / scroll telemetry, not a real event (the Taboola helper blacklists it)">engagement</span>');
+    return pills.join('');
+  }
+  if (r.provider === 'outbrain') {
+    const pills = ['<span class="pill pill-outbrain" title="Outbrain Pixel — tr.outbrain.com/unifiedPixel (obApi)">Outbrain</span>'];
+    if (r.flags && r.flags.pageView) pills.push('<span class="pill pill-event" title="name=PAGE_VIEW — the automatic page-view fire">page view</span>');
+    else pills.push('<span class="pill pill-event" title="an advertiser-defined conversion event (obApi track name)">conversion</span>');
     return pills.join('');
   }
   if (r.provider === 'hubspot') {
@@ -371,6 +382,17 @@ function flagPills(r) {
       out.push(`<span class="pill pill-conversion" title="revenue / currency on the conversion event">revenue: ${amount}</span>`);
     }
     if (r.orderId)  out.push(`<span class="pill pill-event" title="orderid on the make_purchase event">order: ${escapeHtml(r.orderId)}</span>`);
+    return out.join('');
+  }
+  if (r.provider === 'outbrain') {
+    const f = r.flags || {};
+    if (f.conversion) out.push(`<span class="pill pill-ee" title="advertiser-defined conversion (obApi track name)">conversion: ${escapeHtml(r.event)}</span>`);
+    if (r.revenue) {
+      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
+      out.push(`<span class="pill pill-conversion" title="orderValue / currency">revenue: ${amount}</span>`);
+    }
+    if (r.orderId) out.push(`<span class="pill pill-event" title="orderId on the conversion">order: ${escapeHtml(r.orderId)}</span>`);
+    if (r.channel) out.push(`<span class="pill pill-ep" title="cht — the channel the pixel fired through">via: ${escapeHtml(r.channel)}</span>`);
     return out.join('');
   }
   if (r.provider === 'hubspot') {
@@ -974,6 +996,23 @@ function detailHtml(r) {
       extras += section('Consent', kvTable(rows));
     }
     extras += piiSection(r);
+  } else if (r.provider === 'outbrain') {
+    meta = [
+      ['event (name)', r.event],
+      ['kind', r.flags && r.flags.pageView ? 'page view' : 'conversion (advertiser-defined)'],
+      ['marketer id', r.account],
+      ['transport', r.transport], ['method', r.method],
+      ['channel (cht)', r.channel], ['zone', r.zone],
+      ['obApi version', r.apiVersion], ['pixel build (obtpVersion)', r.pixelVersion],
+      ['page url (dl)', r.pageUrl], ['referrer', r.referrer], ['previous page (pRef)', r.previousPage],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      const rows = [['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]];
+      if (r.orderId) rows.push(['order id', r.orderId]);
+      extras += section('conversion', kvTable(rows));
+    }
   } else {
     meta = [
       ['event (en)', r.en], ['measurement id (tid)', r.tid],
