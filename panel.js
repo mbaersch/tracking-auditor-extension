@@ -19,6 +19,7 @@ import { parseAwinRequest } from './lib/awin.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
+import { eventName, accountId, accountTitle, docLocation } from './lib/cardfields.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -95,64 +96,9 @@ function formatTime(d) {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
 }
 
-// Provider-agnostic accessors.
-function eventName(r) {
-  if (r.provider === 'meta')   return r.signalType === 'config-no-event' ? 'pixel initialised — no event' : r.ev;
-  if (r.provider === 'uet')    return r.eventName;
-  if (r.provider === 'tiktok') return r.event;
-  if (r.provider === 'pinterest') return r.event;
-  if (r.provider === 'googleads') return r.event || (r.signalType === 'upd' ? 'user data' : null); // UPD form-data carries no en
-  if (r.provider === 'floodlight') return r.event || (r.flags && r.flags.sales ? 'sales' : 'counter'); // type/cat is the advertiser's own name
-  if (r.provider === 'linkedin') return r.eventName;
-  if (r.provider === 'reddit')   return r.event;
-  if (r.provider === 'snapchat') return r.event;
-  if (r.provider === 'hubspot')  return r.event;
-  if (r.provider === 'criteo')   return r.event;
-  if (r.provider === 'taboola')  return r.event;
-  if (r.provider === 'outbrain') return r.event;
-  if (r.provider === 'awin')     return r.shape === 'plt' ? 'product level tracking' : (r.shape === 'landing' ? 'landing' : 'sale');
-
-  return r.en;
-}
-function accountId(r) {
-  if (r.provider === 'meta')   return r.id;
-  if (r.provider === 'uet')    return r.ti;
-  if (r.provider === 'tiktok') return r.code;
-  if (r.provider === 'pinterest') return r.tid;
-  if (r.provider === 'googleads') return r.accountId;   // AW-<convId>
-  if (r.provider === 'floodlight') return r.advertiserId; // src — Floodlight config / advertiser id
-  if (r.provider === 'linkedin') return r.pid;
-  if (r.provider === 'reddit')   return r.pixelId;
-  if (r.provider === 'snapchat') return r.pixelId;
-  if (r.provider === 'hubspot')  return r.accountId;      // hub / portal id (a)
-  if (r.provider === 'criteo')   return r.account;        // Criteo account (a)
-  if (r.provider === 'taboola')  return r.account;        // Taboola account (numeric)
-  if (r.provider === 'outbrain') return r.account;        // Outbrain marketerId
-  if (r.provider === 'awin')     return r.merchantId;     // Awin advertiser / merchant id
-  return r.tid;
-}
-function accountTitle(r) {
-  if (r.provider === 'meta')   return 'Pixel ID (id)';
-  if (r.provider === 'uet')    return 'UET Tag ID (ti)';
-  if (r.provider === 'tiktok') return 'Pixel Code';
-  if (r.provider === 'pinterest') return 'Tag ID (tid)';
-  if (r.provider === 'googleads') return 'Conversion ID (AW)';
-  if (r.provider === 'floodlight') return 'Floodlight config (src)';
-  if (r.provider === 'linkedin') return 'Partner ID (pid)';
-  if (r.provider === 'reddit')   return 'Pixel ID (id)';
-  if (r.provider === 'snapchat') return 'Pixel ID (pid)';
-  if (r.provider === 'hubspot')  return 'Hub ID (a)';
-  if (r.provider === 'criteo')   return 'Criteo account (a)';
-  if (r.provider === 'taboola')  return 'Taboola account';
-  if (r.provider === 'outbrain') return 'Marketer ID';
-  if (r.provider === 'awin')     return 'Awin merchant (MID)';
-  return 'Measurement ID (tid)';
-}
-function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'floodlight' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo' || r.provider === 'taboola' || r.provider === 'outbrain' || r.provider === 'awin') return r.pageUrl || null; // page url lives in the payload
-  const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
-  return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
-}
+// Provider-agnostic card-header accessors (eventName / accountId / accountTitle /
+// docLocation) now live in lib/cardfields.js — one tested descriptor per
+// provider instead of four parallel if-ladders here.
 
 // --- pill / summary rendering ---------------------------------------------
 
