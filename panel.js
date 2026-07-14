@@ -54,7 +54,12 @@ const PARSERS = [
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true },           // capture switches (the "in" side)
+  // Capture switches (the "in" side). Criteo / Taboola / Outbrain default OFF so a
+  // fresh install (or an update whose stored settings predate them) doesn't flood
+  // the stream with retargeting/native-ads pills — the user opts in per service.
+  // On update these keys are absent from stored settings, so this false default
+  // wins (loadSettings only Object.assigns the keys a user actually saved).
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: false, taboola: false, outbrain: false },
   filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
