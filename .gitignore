@@ -14,3 +14,7 @@ AGENTS.md
 *.har
 tag-assistant-*.json
 
+# Local dev helpers for console-firing hard-to-trigger vendor events (used to
+# capture fixtures, e.g. Criteo window.criteo_q). Kept locally, not shipped.
+*-console-snippet.js
+
