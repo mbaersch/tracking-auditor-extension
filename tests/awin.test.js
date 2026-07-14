@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAwinRequest, isAwinHost, parseAwinParts, parseAwinProducts } from '../lib/awin.js';
+import { parseAwinRequest, isAwinHost, parseAwinParts, parseAwinProducts, toAmount } from '../lib/awin.js';
 
 // Real Awin hits captured on atomkraftwerke24.de (advertiser/merchant 11783). The
 // real MasterTag conversion (orderRef 617591435) fanned out across four transports
@@ -108,6 +108,18 @@ test('landing (alt.php): mid + relayed sale url', () => {
   assert.equal(r.shape, 'landing');
   assert.equal(r.merchantId, '11783');
   assert.equal(r.relayedUrl, 'https://atomkraftwerke24.de/ectest.html');
+});
+
+// --- money parsing: comma/dot decimals + thousands separators --------------
+test('toAmount handles both decimal styles and thousands separators', () => {
+  assert.equal(toAmount('49.90'), 49.9);      // dot decimal
+  assert.equal(toAmount('12,50'), 12.5);      // EU comma decimal
+  assert.equal(toAmount('1.234,56'), 1234.56); // EU: dot grouping + comma decimal
+  assert.equal(toAmount('1,234.56'), 1234.56); // US: comma grouping + dot decimal
+  assert.equal(toAmount('1000'), 1000);
+  assert.ok(Number.isNaN(toAmount('')));
+  assert.ok(Number.isNaN(toAmount(null)));
+  assert.ok(Number.isNaN(toAmount('abc')));
 });
 
 // --- empty templates are skipped, not shown as cards -----------------------

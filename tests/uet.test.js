@@ -41,6 +41,13 @@ test('UET custom conversion: category – action name, value and revenue', () =>
   assert.equal(r.flags.revenue, true);
 });
 
+test('an empty gv= is no revenue, not a zero-value one', () => {
+  const r = parseUetRequest('https://bat.bing.com/action/0?ti=111111111111&evt=custom&ec=cat&ea=act&gv=&gc=EUR', null);
+  assert.ok(r);
+  assert.equal(r.revenue, null);
+  assert.equal(r.flags.revenue, false);
+});
+
 test('UET consent signal (evt=consent) is distinct, not a custom event', () => {
   const update = parseUetRequest('https://bat.bing.com/actionp/0?ti=111111111111&tm=gtm002&Ver=2&mid=a370fb0a&bo=1&evt=consent&src=update&cdb=AQAS&asc=G', null);
   assert.ok(update);

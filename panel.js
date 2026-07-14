@@ -442,9 +442,10 @@ function flagPills(r) {
   return out.join('');
 }
 
+const consentStateCls = (s) => s === 'granted' ? 'pill-consent-granted' : s === 'denied' ? 'pill-consent-denied' : 'pill-consent-unset';
+
 function consentPills(r) {
   const out = [];
-  const stateClsConsent = (s) => s === 'granted' ? 'pill-consent-granted' : s === 'denied' ? 'pill-consent-denied' : 'pill-consent-unset';
   if (r.provider === 'meta') {
     if (r.consent && r.consent.ldu) {
       out.push('<span class="pill pill-consent-unset" title="Limited Data Use active (data_processing_options / dpo)">LDU</span>');
@@ -456,14 +457,13 @@ function consentPills(r) {
     const s = r.consent ? r.consent.adStorage : 'unset';
     const label = s === 'unset' ? 'consent: unset' : `ad: ${s}`;
     const tip = 'Microsoft Consent Mode (asc): G=granted, D=denied, absent=unset';
-    out.push(`<span class="pill ${stateClsConsent(s)}" title="${escapeHtml(tip)}">${escapeHtml(label)}</span>`);
+    out.push(`<span class="pill ${consentStateCls(s)}" title="${escapeHtml(tip)}">${escapeHtml(label)}</span>`);
     return out.join('');
   }
   const consent = r.consent;
   if (!consent) return '';
-  const stateCls = (s) => s === 'granted' ? 'pill-consent-granted' : s === 'denied' ? 'pill-consent-denied' : 'pill-consent-unset';
-  if (consent.adStorage)        out.push(`<span class="pill ${stateCls(consent.adStorage)}" title="ad_storage (gcs)">ad: ${escapeHtml(consent.adStorage)}</span>`);
-  if (consent.analyticsStorage) out.push(`<span class="pill ${stateCls(consent.analyticsStorage)}" title="analytics_storage (gcs)">analytics: ${escapeHtml(consent.analyticsStorage)}</span>`);
+  if (consent.adStorage)        out.push(`<span class="pill ${consentStateCls(consent.adStorage)}" title="ad_storage (gcs)">ad: ${escapeHtml(consent.adStorage)}</span>`);
+  if (consent.analyticsStorage) out.push(`<span class="pill ${consentStateCls(consent.analyticsStorage)}" title="analytics_storage (gcs)">analytics: ${escapeHtml(consent.analyticsStorage)}</span>`);
   return out.join('');
 }
 
