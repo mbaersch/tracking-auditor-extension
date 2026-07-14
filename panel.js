@@ -67,6 +67,7 @@ const state = {
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
+  colorCards: true,                                          // Advanced: tint cards per provider; off → all cards neutral (calmer when comparing many services)
   taggrsKeys: {},                                          // sGTM host → AES key sniffed from the taggrs loader body (decrypts its envelopes)
   taggrsPending: {},                                        // sGTM host → [{block,req,ts,source}] hits that raced ahead of the loader key
 };
@@ -1807,6 +1808,19 @@ function bindLink(id, fn) {
 bindLink('fltAll', () => setAllFilters(true));
 bindLink('fltNone', () => setAllFilters(false));
 
+// Toggle the per-provider card tints on/off. A single class on #blocks flips
+// every card to the neutral surface (its id out-specifies the .ev.p-* tints).
+function applyColorCards() {
+  blocksEl.classList.toggle('no-tint', !state.colorCards);
+}
+
+const colorCardsCb = document.getElementById('colorCards');
+colorCardsCb.addEventListener('change', () => {
+  state.colorCards = colorCardsCb.checked;
+  applyColorCards();
+  saveSettings();
+});
+
 const deepCaptureCb = document.getElementById('deepCapture');
 deepCaptureCb.addEventListener('change', () => {
   if (deepCaptureCb.checked) {
@@ -1827,7 +1841,7 @@ const SETTINGS_KEY = 'trackingAuditorSettings';
 
 function saveSettings() {
   const { text, ...filterToggles } = state.filter;
-  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, deepCapture: state.deepCapture } });
+  chrome.storage.local.set({ [SETTINGS_KEY]: { record: state.record, filter: filterToggles, deepCapture: state.deepCapture, colorCards: state.colorCards } });
 }
 
 // Pull persisted toggles into state, then sync the checkboxes to match.
@@ -1838,6 +1852,7 @@ function loadSettings() {
       if (saved.record) Object.assign(state.record, saved.record);
       if (saved.filter) Object.assign(state.filter, saved.filter);
       if (typeof saved.deepCapture === 'boolean') state.deepCapture = saved.deepCapture;
+      if (typeof saved.colorCards === 'boolean') state.colorCards = saved.colorCards;   // absent (old settings) → keep the colorful default
       for (const cb of document.querySelectorAll('input[data-rec]')) cb.checked = !!state.record[cb.dataset.rec];
       // Restore Deep Capture only if the optional host permission is still held — the
       // user may have revoked it in chrome://extensions since last session.
@@ -1852,6 +1867,8 @@ function loadSettings() {
         deepCaptureCb.checked = false;
       }
     }
+    colorCardsCb.checked = state.colorCards;               // sync the box + tint state (also applies a persisted "off")
+    applyColorCards();
     renderFilterBar();                                     // pills reflect the persisted record/filter state
     applyFilter();
   });

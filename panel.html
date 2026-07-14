@@ -17,7 +17,7 @@
       --surface-cool: #eff6ff;
       --surface-teal: #ecfdf6;
       --surface-hover-primary: #fef9f4;
-      /* Per-provider card tints — each a faint nod to the brand colour, kept
+      /* Per-provider card tints — each a faint nod to the brand color, kept
          distinct from one another so a mixed stream scans at a glance. */
       --card-pinterest: #fef2f2;   /* red    */
       --card-tiktok:    #fdf4ff;   /* fuchsia */
@@ -167,6 +167,10 @@
     .ev.p-outbrain { background: var(--card-outbrain); }
     .ev.p-awin { background: var(--card-awin); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
+    /* Color-code cards OFF (Advanced): every card falls back to the neutral
+       surface so a busy mixed stream stops competing for attention; the provider
+       pills still carry the color signal. The #blocks id wins over .ev.p-* / .ev.t-*. */
+    #blocks.no-tint .ev { background: var(--surface); }
     .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
     .ev-method { font-weight: 700; color: var(--secondary); font-size: 9px; }
@@ -268,6 +272,7 @@
       </div>
       <div class="ctl-row">
         <span class="ctl-label">Advanced</span>
+        <label class="ctl-deep" title="Tint each card with its provider's color. Turn off to give every card the neutral background — steadier when you're comparing more than a few services."><input type="checkbox" id="colorCards" checked> 🎨 Color-code cards</label>
         <label class="ctl-deep" title="Experimental: also observe requests via webRequest to catch hits dispatched from a service worker / cloud edge that the DevTools network panel never sees."><input type="checkbox" id="deepCapture"> 🔬 Deep Capture (SW/Edge)</label>
         <span class="ctl-hint">also captures hits fired from a service worker / cloud edge — needs a broad host permission</span>
       </div>
