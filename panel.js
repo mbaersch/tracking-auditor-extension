@@ -11,6 +11,7 @@ import { parseLinkedInRequest, isLinkedInWaRequest, parseLinkedInWaRequest } fro
 import { parseRedditRequest } from './lib/reddit.js';
 import { parseSnapchatRequest } from './lib/snapchat.js';
 import { parseHubspotRequest } from './lib/hubspot.js';
+import { parseCriteoRequest } from './lib/criteo.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
@@ -39,13 +40,14 @@ const PARSERS = [
   { id: 'reddit', parse: parseRedditRequest },
   { id: 'snapchat', parse: parseSnapchatRequest },
   { id: 'hubspot', parse: parseHubspotRequest },
+  { id: 'criteo', parse: parseCriteoRequest },
 ];
 
 const state = {
   recording: false,
   blocks: [],                                             // [{ navUrl, navTime, events:[], _el, _eventsEl }]
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true },           // capture switches (the "in" side)
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true },           // capture switches (the "in" side)
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -55,8 +57,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -89,6 +91,7 @@ function eventName(r) {
   if (r.provider === 'reddit')   return r.event;
   if (r.provider === 'snapchat') return r.event;
   if (r.provider === 'hubspot')  return r.event;
+  if (r.provider === 'criteo')   return r.event;
 
   return r.en;
 }
@@ -102,6 +105,7 @@ function accountId(r) {
   if (r.provider === 'reddit')   return r.pixelId;
   if (r.provider === 'snapchat') return r.pixelId;
   if (r.provider === 'hubspot')  return r.accountId;      // hub / portal id (a)
+  if (r.provider === 'criteo')   return r.account;        // Criteo account (a)
   return r.tid;
 }
 function accountTitle(r) {
@@ -114,10 +118,11 @@ function accountTitle(r) {
   if (r.provider === 'reddit')   return 'Pixel ID (id)';
   if (r.provider === 'snapchat') return 'Pixel ID (pid)';
   if (r.provider === 'hubspot')  return 'Hub ID (a)';
+  if (r.provider === 'criteo')   return 'Criteo account (a)';
   return 'Measurement ID (tid)';
 }
 function docLocation(r) {
-  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot') return r.pageUrl || null; // page url lives in the payload
+  if (r.provider === 'tiktok' || r.provider === 'pinterest' || r.provider === 'googleads' || r.provider === 'linkedin' || r.provider === 'reddit' || r.provider === 'snapchat' || r.provider === 'hubspot' || r.provider === 'criteo') return r.pageUrl || null; // page url lives in the payload
   const key = r.provider === 'uet' ? 'p' : 'dl';   // UET carries the page url in p
   return (r.queryParams && r.queryParams[key]) || (r.bodyParams && r.bodyParams[key]) || null;
 }
@@ -180,6 +185,9 @@ function providerPills(r) {
   }
   if (r.provider === 'snapchat') {
     return '<span class="pill pill-snapchat" title="Snapchat Pixel — tr.snapchat.com/p">Snapchat</span>';
+  }
+  if (r.provider === 'criteo') {
+    return '<span class="pill pill-criteo" title="Criteo OneTag — sslwidget.criteo.com/event">Criteo</span>';
   }
   if (r.provider === 'hubspot') {
     const pills = ['<span class="pill pill-hubspot" title="HubSpot — track.hubspot.com beacons (__ptq/__ptbe/__ptc) + Collected Forms">HubSpot</span>'];
@@ -399,6 +407,10 @@ function summaryPills(r) {
     if (r.flags && r.flags.advancedMatching) {
       pills.push('<span class="pill pill-em" title="Advanced matching present (hashed u_* / l_* identifiers incl. geo/age)">adv. matching</span>');
     }
+  } else if (r.provider === 'criteo') {
+    if (r.flags && r.flags.cleartextEmail) {
+      pills.push('<span class="pill pill-ud" title="setEmail sent the email address to Criteo in cleartext (not hashed)">cleartext email</span>');
+    }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
   }
@@ -436,6 +448,7 @@ const PII_SECTION_TITLE = {
   reddit: 'PII / user data (advanced + auto matching)',
   snapchat: 'PII / user data (advanced matching — incl. geo/age)',
   hubspot: 'PII / user data (identify — cleartext)',
+  criteo: 'PII / user data (setEmail — cleartext)',
 };
 
 // The one place PII surfaces in the details: every user-data field a request
@@ -795,6 +808,36 @@ function detailHtml(r) {
     }
     if (r.properties) {
       extras += section('event properties (_*)', `<table class="det-table">${paramRows(r.properties)}</table>`);
+    }
+  } else if (r.provider === 'criteo') {
+    meta = [
+      ['event', r.event], ['event code', r.eventCode], ['account (a)', r.account],
+      ['transport', r.transport], ['method', r.method], ['OneTag version (v)', r.version],
+      ['transaction id', r.transactionId], ['category', r.category], ['currency', r.currency],
+      ['page url (fu)', r.pageUrl], ['referrer (pu)', r.referrer], ['event id (ceid)', r.eventId],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('revenue', kvTable([['value', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`]]));
+    }
+    if (r.items && r.items.length) {
+      const rows = r.items.map((it, i) => [`item ${i + 1}`,
+        [it.id ? `id ${it.id}` : null, it.price ? `price ${it.price}${r.currency ? ' ' + r.currency : ''}` : null, it.quantity ? `×${it.quantity}` : null].filter(Boolean).join('  ·  ')]);
+      extras += section(`products (${r.items.length})`, kvTable(rows));
+    }
+    extras += piiSection(r);
+    if (r.consent) {
+      const rows = [];
+      if (r.consent.gpp)       rows.push(['GPP string', r.consent.gpp]);
+      if (r.consent.gppSid)    rows.push(['GPP section id', r.consent.gppSid]);
+      if (r.consent.usPrivacy) rows.push(['US Privacy (cs)', r.consent.usPrivacy]);
+      if (rows.length) extras += section('Consent', kvTable(rows));
+    }
+    // The full slot list makes the multi-event batching + technical exd/dis visible.
+    extras += section('OneTag events (slots p0..pN)', kvTable(r.slots.map((s) => [s.code, s.name])));
+    if (r.sharedCookies) {
+      extras += section('shared cookies (sc)', kvTable([['sc', r.sharedCookies]]));
     }
   } else {
     meta = [
