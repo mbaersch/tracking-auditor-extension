@@ -118,10 +118,11 @@ function docLocation(r) {
 
 // --- pill / summary rendering ---------------------------------------------
 
-// GA4 transport sub-pills shown next to the GA4 provider pill (standard needs none).
+// GA4 transport sub-pills shown next to the GA4 provider pill. 'standard' and
+// 'unknown' get none: standard is the plain vendor path, and 'unknown' is an
+// unconfirmed transport we deliberately do NOT label (it may change tomorrow).
 const GA4_TRANSPORT_SUB = {
   'first-party': { cls: 'pill-custom', label: 'first-party', tip: 'sGTM / Tag Gateway on the site’s own registrable domain (page eTLD+1 == host eTLD+1)' },
-  'proxy':       { cls: 'pill-stape',  label: 'proxy',       tip: 'sGTM / server proxy on a foreign domain (host eTLD+1 ≠ page eTLD+1) — not first-party' },
   'stape-b64':   { cls: 'pill-stape',  label: 'Stape b64',   tip: 'Stape Custom Loader — GA4 path was base64-encoded inside the request URL' },
   'custom-path': { cls: 'pill-custom', label: 'Custom path',  tip: 'Custom delivery path without a standard /collect segment' },
 };
@@ -971,10 +972,14 @@ function currentBlock() {
   return state.blocks.length ? state.blocks[state.blocks.length - 1] : startBlock(null);
 }
 
-function parseRequest(url, postData) {
+// pageUrl is the inspected page's real URL (the current block's navUrl). It is
+// the only trusted source for the first-party call — a hit's own payload can
+// claim any dl. When it isn't resolved yet, parsers fall back to 'unknown'
+// rather than assuming first-party.
+function parseRequest(url, postData, pageUrl) {
   for (const p of PARSERS) {
     if (!state.record[p.id]) continue;          // service capture switched off
-    const r = p.parse(url, postData);
+    const r = p.parse(url, postData, pageUrl);
     if (r) return r;
   }
   return null;
@@ -1005,8 +1010,9 @@ function ingestRequest(req, ts, source) {
   // Environmental signal (not a tracking hit): a first-party Tag Gateway service
   // worker. Flag it so the user knows some hits may be dispatched invisibly.
   if (isTagGatewaySwIframe(req.url)) { showSwNotice(currentBlock()); return; }
-  const r = parseRequest(req.url, req.postData);
-  if (r) { r._source = source; commitRecord(currentBlock(), r, req, ts); return; }
+  const block = currentBlock();
+  const r = parseRequest(req.url, req.postData, block.navUrl);
+  if (r) { r._source = source; commitRecord(block, r, req, ts); return; }
   // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
   // tracking event, so no parser claims it. When Meta recording is on, register
   // it and arm the 2s "did an event follow?" check.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { registrableDomain, isSameSite } from '../lib/domain.js';
+import { registrableDomain, isSameSite, isSameSiteUrl } from '../lib/domain.js';
 
 test('registrableDomain: plain TLDs collapse to eTLD+1', () => {
   assert.equal(registrableDomain('happytagging.taggrs.io'), 'taggrs.io');
@@ -28,4 +28,12 @@ test('isSameSite: subdomain vs apex on the same registrable domain', () => {
   assert.equal(isSameSite('pagead2.googlesyndication.com', 'taggrs.io'), false);
   assert.equal(isSameSite('sgtm.othervendor.io', 'example.com'), false);
   assert.equal(isSameSite('', 'taggrs.io'), false);
+});
+
+test('isSameSiteUrl: compares a host against a full page URL, never assumes', () => {
+  assert.equal(isSameSiteUrl('happytagging.taggrs.io', 'https://www.taggrs.io/de/'), true);
+  assert.equal(isSameSiteUrl('abc.taggrs.io', 'https://example.com/'), false);
+  assert.equal(isSameSiteUrl('sgtm.example.com', 'https://www.example.com/checkout'), true);
+  assert.equal(isSameSiteUrl('sgtm.example.com', undefined), false);   // no page url → no claim
+  assert.equal(isSameSiteUrl('sgtm.example.com', 'not a url'), false); // unparseable → no claim
 });

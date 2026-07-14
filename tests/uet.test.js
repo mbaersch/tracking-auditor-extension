@@ -104,10 +104,22 @@ test('consent: asc=G granted, asc=D denied, absent = unset (visible)', () => {
   assert.equal(absent.asc, null);
 });
 
-test('first-party proxied /action on own domain', () => {
-  const r = parseUetRequest('https://track.example.com/action/0?ti=999&evt=pageLoad', null);
+test('first-party proxied /action on the page’s own domain (same-site)', () => {
+  const r = parseUetRequest('https://track.example.com/action/0?ti=999&evt=pageLoad', null, 'https://www.example.com/');
   assert.ok(r);
   assert.equal(r.transport, 'first-party');
+});
+
+test('proxied /action on a foreign domain stays visible but is unknown', () => {
+  const r = parseUetRequest('https://track.taggrs.io/action/0?ti=999&evt=pageLoad', null, 'https://example.com/');
+  assert.ok(r);                                  // hit is NOT dropped
+  assert.equal(r.transport, 'unknown');
+});
+
+test('proxied /action without a page URL cannot claim first-party', () => {
+  const r = parseUetRequest('https://track.example.com/action/0?ti=999&evt=pageLoad', null);
+  assert.ok(r);
+  assert.equal(r.transport, 'unknown');
 });
 
 test('non-UET requests are ignored', () => {

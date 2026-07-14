@@ -74,11 +74,25 @@ test('custom event with custom data and dedup id', () => {
   assert.equal(r.customData.currency, 'EUR');
 });
 
-test('first-party proxied /tr on own domain (numeric id + ev)', () => {
-  const r = parseMetaRequest('https://track.example.com/abc/tr?id=999&ev=Purchase', null);
+test('first-party proxied /tr on the page’s own domain (same-site)', () => {
+  // track.example.com ↔ inspected page www.example.com → first-party.
+  const r = parseMetaRequest('https://track.example.com/abc/tr?id=999&ev=Purchase', null, 'https://www.example.com/');
   assert.ok(r);
   assert.equal(r.transport, 'first-party');
   assert.equal(r.ev, 'Purchase');
+});
+
+test('proxied /tr on a foreign domain stays visible but is unknown, not first-party', () => {
+  const r = parseMetaRequest('https://track.taggrs.io/abc/tr?id=999&ev=Purchase', null, 'https://example.com/');
+  assert.ok(r);                                  // hit is NOT dropped
+  assert.equal(r.transport, 'unknown');
+  assert.equal(r.ev, 'Purchase');
+});
+
+test('proxied /tr without a page URL cannot claim first-party', () => {
+  const r = parseMetaRequest('https://track.example.com/abc/tr?id=999&ev=Purchase', null);
+  assert.ok(r);
+  assert.equal(r.transport, 'unknown');
 });
 
 test('LDU / data_processing_options is surfaced as consent', () => {

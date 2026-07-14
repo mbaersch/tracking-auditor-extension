@@ -66,32 +66,39 @@ test('measurement: add_to_cart carries epn.value', () => {
 });
 
 // --- transport: where the hit egresses, not what fired it ------------------
-// Real request captured on taggrs.io: a ccm/collect twin gtag fires straight to
-// pagead2.googlesyndication.com. It is a Google host → third-party, NOT first-party,
-// even though the loader that fired it is served first-party.
+// The first-party call uses the inspected page URL (3rd arg), NOT the payload's
+// own dl — a hit can claim any dl. Real request captured on taggrs.io: a
+// ccm/collect twin gtag fires straight to pagead2.googlesyndication.com. It is a
+// Google host → third-party, regardless of the page.
 const MEAS_SYNDICATION = 'https://pagead2.googlesyndication.com/ccm/collect?rcb=14&frm=0&en=page_view&dl=https%3A%2F%2Ftaggrs.io%2Fde%2F&dr=www.google.com&scrsrc=happytagging.taggrs.io&npa=1&did=dMWZhNz&gdid=dMWZhNz&_tu=CA&gcs=G100&dma=1&tids=AW-11030440615&tid=AW-11030440615';
 // Same event, but genuinely sGTM-proxied onto the site's own registrable domain.
-const MEAS_1P_PROXY = 'https://happytagging.taggrs.io/ccm/collect?en=page_view&dl=https%3A%2F%2Ftaggrs.io%2Fde%2F&gcs=G100&tids=AW-11030440615&tid=AW-11030440615';
+const MEAS_1P_PROXY = 'https://happytagging.taggrs.io/ccm/collect?en=page_view&gcs=G100&tids=AW-11030440615&tid=AW-11030440615';
 // Ads path served from a foreign domain (shared sGTM vendor host, different site).
-const MEAS_FOREIGN_PROXY = 'https://sgtm.othervendor.io/ccm/collect?en=page_view&dl=https%3A%2F%2Fexample.com%2F&gcs=G100&tid=AW-11030440615';
+const MEAS_FOREIGN_PROXY = 'https://sgtm.othervendor.io/ccm/collect?en=page_view&gcs=G100&tid=AW-11030440615';
 
 test('transport: googlesyndication.com is a Google host → third-party (not first-party)', () => {
-  const r = parseGoogleAdsRequest(MEAS_SYNDICATION, null);
+  const r = parseGoogleAdsRequest(MEAS_SYNDICATION, null, 'https://taggrs.io/de/');
   assert.ok(r);
   assert.equal(r.host, 'pagead2.googlesyndication.com');
   assert.equal(r.transport, 'google');
 });
 
-test('transport: sGTM proxy on the site\'s own eTLD+1 is first-party', () => {
-  const r = parseGoogleAdsRequest(MEAS_1P_PROXY, null);
+test('transport: sGTM proxy on the page\'s own eTLD+1 is first-party', () => {
+  const r = parseGoogleAdsRequest(MEAS_1P_PROXY, null, 'https://taggrs.io/de/');
   assert.ok(r);
   assert.equal(r.transport, 'first-party');   // happytagging.taggrs.io ↔ taggrs.io
 });
 
-test('transport: Ads path on a foreign domain is proxy, never first-party', () => {
-  const r = parseGoogleAdsRequest(MEAS_FOREIGN_PROXY, null);
+test('transport: Ads path on a foreign domain is unknown, never first-party', () => {
+  const r = parseGoogleAdsRequest(MEAS_FOREIGN_PROXY, null, 'https://example.com/');
   assert.ok(r);
-  assert.equal(r.transport, 'proxy');         // sgtm.othervendor.io ↔ example.com
+  assert.equal(r.transport, 'unknown');       // sgtm.othervendor.io ↔ example.com
+});
+
+test('transport: non-Google host without a page URL cannot claim first-party', () => {
+  const r = parseGoogleAdsRequest(MEAS_1P_PROXY, null);   // no pageUrl
+  assert.ok(r);
+  assert.equal(r.transport, 'unknown');
 });
 
 test('remarketing: product data lives in the remarketing bucket', () => {
