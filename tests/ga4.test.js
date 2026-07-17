@@ -142,6 +142,12 @@ test('flags: session start, first visit, ep count (unique across query+body)', (
   assert.equal(r.flags.epCount, 2);
 });
 
+test('flags: user-property count (up.* / upn.*), kept separate from ep count', () => {
+  const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=login&ep.foo=a&up.plan=pro&upn.age=42', null);
+  assert.equal(r.flags.epCount, 1);
+  assert.equal(r.flags.upCount, 2);
+});
+
 test('flags: conversion (_c) and external event (_ee)', () => {
   const r = parseGa4Request('https://www.google-analytics.com/g/collect?v=2&tid=G-X&en=purchase&_c=1&_ee=1', null);
   assert.equal(r.flags.conversion, true);

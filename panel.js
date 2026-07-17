@@ -378,6 +378,7 @@ function flagPills(r) {
   if (f.firstVisit)    out.push('<span class="pill pill-event" title="_fv=1 — first visit">first visit</span>');
   if (f.itemCount)     out.push(`<span class="pill pill-event" title="${f.itemCount} e-commerce item(s) in the pr1..prN payload">items ×${f.itemCount}</span>`);
   if (f.epCount)       out.push(`<span class="pill pill-ep" title="${f.epCount} custom event parameter(s): ep.* / epn.*">ep ×${f.epCount}</span>`);
+  if (f.upCount)       out.push(`<span class="pill pill-ep" title="${f.upCount} user propert${f.upCount === 1 ? 'y' : 'ies'}: up.* / upn.*">up ×${f.upCount}</span>`);
   return out.join('');
 }
 
