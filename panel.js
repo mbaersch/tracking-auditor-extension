@@ -21,6 +21,7 @@ import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTag
 import { algoLabel, algoNote } from './lib/params.js';
 import { eventName, accountId, accountTitle, docLocation } from './lib/cardfields.js';
 import { clip, idList } from './lib/pilltext.js';
+import { isSameSiteUrl } from './lib/domain.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -1557,24 +1558,22 @@ function noteDevtoolsSeen(method, url) {
   if (pending != null) { clearTimeout(pending); pendingWr.delete(key); }  // DevTools covers it — drop the webRequest copy
 }
 
-// The origin (scheme+host+port) of a url, or null if it can't be parsed.
-function originOf(url) {
-  try { return new URL(url).origin; } catch (e) { return null; }
-}
-
 function onWebRequestEvent(msg) {
   if (!state.deepCapture || !state.recording) return;
   if (!msg || msg.kind !== 'wr-request' || !msg.url) return;
   // Worker-dispatched hits carry tabId === -1, so background.js can't route them
   // to the owning tab and fans them out to *every* connected panel. If two tabs
   // are inspected at once, that would leak tab B's hits into tab A's capture.
-  // Guard it here: a fanned-out hit is only ours if its initiator origin matches
-  // the inspected page's origin (a first-party worker is same-origin with its
-  // page). If we can't confirm the match, drop it rather than cross-contaminate.
+  // Guard it here: a fanned-out hit is only ours if its initiator is same-SITE
+  // with the inspected page. A first-party sGTM / Tag-Gateway service worker
+  // dispatches from a subdomain of the site (data.example.com, sgtm.example.com),
+  // so it shares the page's registrable domain but NOT its exact origin — a
+  // same-origin test would wrongly drop exactly the worker hits we're hunting.
+  // If we can't confirm the same-site match, drop it rather than cross-contaminate.
   if (typeof msg.tabId === 'number' && msg.tabId < 0) {
-    const pageOrigin = originOf(currentBlock().navUrl || '');
-    const initiatorOrigin = originOf(msg.initiator || '');
-    if (!pageOrigin || !initiatorOrigin || pageOrigin !== initiatorOrigin) return;
+    let initiatorHost = '';
+    try { initiatorHost = new URL(msg.initiator || '').host; } catch (e) { return; }
+    if (!isSameSiteUrl(initiatorHost, currentBlock().navUrl || '')) return;
   }
   const key = reqKey(msg.method, msg.url);
   const seenExpiry = devtoolsSeen.get(key);

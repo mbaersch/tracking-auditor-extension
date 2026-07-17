@@ -147,6 +147,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
+v1.1.0
+- Deep Capture: first-party server-side GTM (Tag Gateway) hits dispatched from a service worker on a subdomain (e.g. `data.example.com`) are now captured. The cross-tab guard was requiring an exact origin match and silently dropped these; it now accepts same-site initiators (same registrable domain as the page).
+
 v1.0.0
 - first "complete" release also includes Floodlight (to fill the gap in the Google stack; default "on"), Criteo, Taboola, and Outbrain (default "off") and also Awin (probably the only affiliate network in this tool; default "off") as new services. If you want to debug any of them (except Floodlght), switch recording on first once.
 - taggrs Custom Loader detection and decryption
