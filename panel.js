@@ -20,6 +20,7 @@ import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
 import { eventName, accountId, accountTitle, docLocation } from './lib/cardfields.js';
+import { clip, idList } from './lib/pilltext.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -212,6 +213,14 @@ function taggrsPill(r) {
   return `<span class="pill pill-taggrs" title="${escapeHtml(tip)}">taggrs</span>`;
 }
 
+// Every provider shows revenue the same way; only the parameter names in the tip
+// differ. `value` is a site-supplied string — a broken tag can send anything, so
+// it is clipped like any other value-bearing pill.
+function revenuePill(rev, tip, suffix = '') {
+  const amount = `${escapeHtml(clip(rev.value))}${rev.currency ? ' ' + escapeHtml(clip(rev.currency, 8)) : ''}`;
+  return `<span class="pill pill-conversion" title="${tip}">revenue: ${amount}${suffix}</span>`;
+}
+
 function flagPills(r) {
   const out = [];
   if (r.provider === 'meta') {
@@ -230,10 +239,7 @@ function flagPills(r) {
     if (f.personalData) out.push('<span class="pill pill-em" title="evt=pid — payload is user data / enhanced conversions only">personal data</span>');
     if (f.custom)    out.push('<span class="pill pill-ee" title="Custom event (evt=custom) — typically a conversion goal">custom event</span>');
     if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (prodid / pagetype / ecomm_*)">ecommerce</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="Goal value (gv) / e-commerce total">revenue: ${amount}</span>`);
-    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'Goal value (gv) / e-commerce total'));
     if (f.iframe) out.push('<span class="pill pill-ep" title="ifm=1 — fired inside an iframe">iframe</span>');
     if (f.spa)    out.push('<span class="pill pill-ep" title="spa=1 — single-page-app navigation">SPA</span>');
     return out.join('');
@@ -243,10 +249,7 @@ function flagPills(r) {
     if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a TikTok standard event)">custom event</span>');
     if (f.dedup)          out.push('<span class="pill pill-event" title="event_id present — event ID for Events API deduplication">dedup</span>');
     if (f.ecommerce)      out.push('<span class="pill pill-event" title="E-commerce event with content/value data (properties.contents[])">ecommerce</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="properties.value / currency">revenue: ${amount}</span>`);
-    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'properties.value / currency'));
     if (f.invalidSignal) out.push('<span class="pill pill-consent-denied" title="TikTok flagged a sent identifier as invalid (signal_diagnostic_labels)">signal: invalid</span>');
     return out.join('');
   }
@@ -255,23 +258,26 @@ function flagPills(r) {
     if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a Pinterest standard event)">custom event</span>');
     if (f.dedup)          out.push('<span class="pill pill-event" title="ed.event_id present — event ID for Conversions API deduplication">dedup</span>');
     if (f.ecommerce)      out.push('<span class="pill pill-event" title="E-commerce event with value / line_items">ecommerce</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="ed.value / currency">revenue: ${amount}</span>`);
-    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'ed.value / currency'));
     if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom field(s) in ed">cd ×${f.cdCount}</span>`);
     if (f.isEu)          out.push('<span class="pill pill-consent-info" title="ad.is_eu — request originated in an EU/privacy region">EU</span>');
     return out.join('');
   }
   if (r.provider === 'googleads') {
     const f = r.flags || {};
-    if (f.conversion && r.label) out.push(`<span class="pill pill-ee" title="conversion label — AW-${escapeHtml(String(r.convId))}/${escapeHtml(r.label)}">label: ${escapeHtml(r.label)}</span>`);
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="value / currency_code">revenue: ${amount}</span>`);
-    }
+    if (f.conversion && r.label) out.push(`<span class="pill pill-ee" title="conversion label — AW-${escapeHtml(String(r.convId))}/${escapeHtml(r.label)}">label: ${escapeHtml(clip(r.label))}</span>`);
+    if (r.revenue) out.push(revenuePill(r.revenue, 'value / currency_code'));
     if (f.enhancedConversions) out.push('<span class="pill pill-em" title="Enhanced conversions active (capi / em / ec_mode)">EC</span>');
-    if (r.productData && r.productData.id) out.push(`<span class="pill pill-ep" title="dynamic remarketing product (data: google_business_vertical / id)">item: ${escapeHtml(r.productData.id)}</span>`);
+    if (r.productData && r.productData.id) {
+      // A listing-page / basket fire sends the whole basket in one `id`. Naming
+      // every product would run the pill off the card, so a list reads as a
+      // count — the same call GA4's `items ×N` pill makes. The ids stay in the
+      // "remarketing data (data)" detail block either way.
+      const ids = idList(r.productData.id);
+      const tip = `dynamic remarketing product (data: google_business_vertical / id): ${escapeHtml(r.productData.id)}`;
+      const label = ids.length > 1 ? `items ×${ids.length}` : `item: ${escapeHtml(clip(ids[0] || r.productData.id))}`;
+      out.push(`<span class="pill pill-ep" title="${tip}">${label}</span>`);
+    }
     if (f.isEu) out.push('<span class="pill pill-consent-info" title="dma=1 — EU/EEA consent context">EU</span>');
     if (r._transports && r._transports.length > 1) {
       out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
@@ -280,12 +286,9 @@ function flagPills(r) {
   }
   if (r.provider === 'floodlight') {
     const f = r.flags || {};
-    if (r.group) out.push(`<span class="pill pill-ee" title="activity GROUP tag (type) — advertiser-defined">group: ${escapeHtml(r.group)}</span>`);
-    if (r.activityTag) out.push(`<span class="pill pill-event" title="activity tag (cat) — advertiser-defined">tag: ${escapeHtml(r.activityTag)}</span>`);
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="cost / value on the sales activity">revenue: ${amount}</span>`);
-    }
+    if (r.group) out.push(`<span class="pill pill-ee" title="activity GROUP tag (type) — advertiser-defined: ${escapeHtml(r.group)}">group: ${escapeHtml(clip(r.group))}</span>`);
+    if (r.activityTag) out.push(`<span class="pill pill-event" title="activity tag (cat) — advertiser-defined: ${escapeHtml(r.activityTag)}">tag: ${escapeHtml(clip(r.activityTag))}</span>`);
+    if (r.revenue) out.push(revenuePill(r.revenue, 'cost / value on the sales activity'));
     if (r.customVars) out.push(`<span class="pill pill-ep" title="custom Floodlight variables: ${escapeHtml(Object.keys(r.customVars).join(', '))}">u ×${Object.keys(r.customVars).length}</span>`);
     // Purpose markers read off the parameter set (see lib/floodlight.js): a fire
     // carrying gcl* click-linking is a Google Ads / Signals remarketing signal
@@ -301,7 +304,7 @@ function flagPills(r) {
   if (r.provider === 'linkedin') {
     const f = r.flags || {};
     if (r._endpoint === 'wa') {
-      if (f.signal)      out.push(`<span class="pill pill-event" title="signalType — the LinkedIn /wa/ signal">${escapeHtml(f.signal)}</span>`);
+      if (f.signal)      out.push(`<span class="pill pill-event" title="signalType — the LinkedIn /wa/ signal: ${escapeHtml(f.signal)}">${escapeHtml(clip(f.signal))}</span>`);
       if (f.hashedEmail) out.push('<span class="pill pill-em" title="hem — SHA-256 of the email, sent in the /wa/ body (enhanced conversions PII)">hashed email</span>');
       if (f.liFat)       out.push('<span class="pill pill-ud" title="liFatId / liGiant — LinkedIn first-party ad-tracking id">li_fat</span>');
       if (r._transports && r._transports.length > 1) {
@@ -309,7 +312,7 @@ function flagPills(r) {
       }
       return out.join('');
     }
-    if (f.conversion) out.push(`<span class="pill pill-conversion" title="conversionId — the LinkedIn conversion rule id">conv id: ${escapeHtml(r.conversionId)}</span>`);
+    if (f.conversion) out.push(`<span class="pill pill-conversion" title="conversionId — the LinkedIn conversion rule id: ${escapeHtml(r.conversionId)}">conv id: ${escapeHtml(clip(r.conversionId))}</span>`);
     if (f.ipHash)     out.push('<span class="pill pill-em" title="e_ipv6 — encrypted client IP (sent to the px4 mirror)">IP hash</span>');
     return out.join('');
   }
@@ -317,10 +320,7 @@ function flagPills(r) {
     const f = r.flags || {};
     if (f.custom)      out.push('<span class="pill pill-ee" title="Custom event (not a Reddit standard event) — name in m.customEventName">custom event</span>');
     if (f.dedup)       out.push('<span class="pill pill-event" title="m.transactionId / m.conversionId present — Conversions API deduplication">dedup</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="m.value / m.valueDecimal + m.currency">revenue: ${amount}</span>`);
-    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'm.value / m.valueDecimal + m.currency'));
     if (f.autoMatching) out.push('<span class="pill pill-ud" title="Auto-collected identifiers present (auto_em / auto_pn)">auto match</span>');
     if (f.externalId)   out.push('<span class="pill pill-ud" title="external_id present (hashed)">external_id</span>');
     if (f.optOut)       out.push('<span class="pill pill-consent-denied" title="opt_out=1">opt-out</span>');
@@ -330,43 +330,34 @@ function flagPills(r) {
     const f = r.flags || {};
     if (f.custom)  out.push('<span class="pill pill-ee" title="Custom event (not a Snapchat standard event)">custom event</span>');
     if (f.dedup)   out.push('<span class="pill pill-event" title="cdid present — client_deduplication_id (Conversions API dedup)">dedup</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="e_pr / e_cur">revenue: ${amount}</span>`);
-    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'e_pr / e_cur'));
     if (f.ecommerce) out.push('<span class="pill pill-event" title="E-commerce fields present (e_*)">ecommerce</span>');
     return out.join('');
   }
   if (r.provider === 'taboola') {
     const f = r.flags || {};
     if (f.custom)    out.push('<span class="pill pill-ee" title="Custom event (not a Taboola standard event)">custom event</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="revenue / currency on the conversion event">revenue: ${amount}</span>`);
-    }
-    if (r.orderId)  out.push(`<span class="pill pill-event" title="orderid on the make_purchase event">order: ${escapeHtml(r.orderId)}</span>`);
+    if (r.revenue) out.push(revenuePill(r.revenue, 'revenue / currency on the conversion event'));
+    if (r.orderId)  out.push(`<span class="pill pill-event" title="orderid on the make_purchase event: ${escapeHtml(r.orderId)}">order: ${escapeHtml(clip(r.orderId))}</span>`);
     return out.join('');
   }
   if (r.provider === 'outbrain') {
     const f = r.flags || {};
     if (f.custom && !f.pageView) out.push('<span class="pill pill-ee" title="Custom event (not a documented Outbrain standard event name)">custom event</span>');
-    if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="orderValue / currency">revenue: ${amount}</span>`);
-    }
-    if (r.orderId) out.push(`<span class="pill pill-event" title="orderId on the conversion">order: ${escapeHtml(r.orderId)}</span>`);
-    if (r.channel) out.push(`<span class="pill pill-ep" title="cht — the channel the pixel fired through">via: ${escapeHtml(r.channel)}</span>`);
+    if (r.revenue) out.push(revenuePill(r.revenue, 'orderValue / currency'));
+    if (r.orderId) out.push(`<span class="pill pill-event" title="orderId on the conversion: ${escapeHtml(r.orderId)}">order: ${escapeHtml(clip(r.orderId))}</span>`);
+    if (r.channel) out.push(`<span class="pill pill-ep" title="cht — the channel the pixel fired through: ${escapeHtml(r.channel)}">via: ${escapeHtml(clip(r.channel))}</span>`);
     return out.join('');
   }
   if (r.provider === 'awin') {
     if (r.revenue) {
-      const amount = `${escapeHtml(r.revenue.value)}${r.revenue.currency ? ' ' + escapeHtml(r.revenue.currency) : ''}`;
-      out.push(`<span class="pill pill-conversion" title="${r.revenue.computed ? 'derived basket total (Σ price×qty)' : 'sale amount'}">revenue: ${amount}${r.revenue.computed ? ' *' : ''}</span>`);
+      out.push(revenuePill(r.revenue, r.revenue.computed ? 'derived basket total (Σ price×qty)' : 'sale amount',
+        r.revenue.computed ? ' *' : ''));
     }
-    if (r.orderRef) out.push(`<span class="pill pill-event" title="order reference (ref / c / orderRef)">ref: ${escapeHtml(r.orderRef)}</span>`);
+    if (r.orderRef) out.push(`<span class="pill pill-event" title="order reference (ref / c / orderRef): ${escapeHtml(r.orderRef)}">ref: ${escapeHtml(clip(r.orderRef))}</span>`);
     if (Array.isArray(r.products)) out.push(`<span class="pill pill-ep" title="products in the PLT basket (product_line)">items ×${r.products.length}</span>`);
     if (Array.isArray(r.parts) && r.parts.length > 1) out.push(`<span class="pill pill-ep" title="commission groups (parts / d): ${escapeHtml(r.parts.map(p => p.group + ':' + p.amount).join(' · '))}">${r.parts.length} groups</span>`);
-    if (r.channel) out.push(`<span class="pill pill-ep" title="channel (ch): aw=Awin, na=not attributed, …">ch: ${escapeHtml(r.channel)}</span>`);
+    if (r.channel) out.push(`<span class="pill pill-ep" title="channel (ch): aw=Awin, na=not attributed, … — sent: ${escapeHtml(r.channel)}">ch: ${escapeHtml(clip(r.channel))}</span>`);
     if (r._transports && r._transports.length > 1) out.push(`<span class="pill pill-ud" title="transport mirrors folded into this card: ${escapeHtml(r._transports.join(' · '))}">×${r._transports.length} transports</span>`);
     return out.join('');
   }
