@@ -1609,7 +1609,17 @@ function connectDeepCapture() {
     wrPort = chrome.runtime.connect({ name: 'auditor-panel' });
     wrPort.postMessage({ type: 'init', tabId });
     wrPort.onMessage.addListener(onWebRequestEvent);
-    wrPort.onDisconnect.addListener(() => { wrPort = null; });  // background worker recycled — reconnect lazily on next enable
+    wrPort.onDisconnect.addListener(() => {
+      wrPort = null;
+      // MV3 terminates the background service worker after a few minutes of
+      // inactivity, which drops this port and empties its `ports` map — capture
+      // would then silently die until the user re-toggled Deep Capture. Reconnect
+      // while the feature is still on: connecting wakes the worker (which
+      // re-attaches its webRequest listener) and re-sends init so it routes
+      // worker hits to us again. A short delay avoids a tight loop if the connect
+      // itself keeps failing.
+      if (state.deepCapture) setTimeout(connectDeepCapture, 500);
+    });
   } catch (e) { wrPort = null; }
 }
 

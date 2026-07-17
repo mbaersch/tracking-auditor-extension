@@ -149,6 +149,7 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 v1.1.0
 - Deep Capture: first-party server-side GTM (Tag Gateway) hits dispatched from a service worker on a subdomain (e.g. `data.example.com`) are now captured. The cross-tab guard was requiring an exact origin match and silently dropped these; it now accepts same-site initiators (same registrable domain as the page).
+- Deep Capture: reconnect after the background service worker is recycled. MV3 terminates the worker after a few minutes, which dropped the capture port and silently stopped Deep Capture until it was toggled off and on again — the panel now re-establishes the connection automatically.
 - GA4: new `up ×n` pill showing the number of user properties (`up.*` / `upn.*`), alongside the existing `ep ×n` event-parameter pill.
 
 v1.0.0
