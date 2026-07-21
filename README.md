@@ -133,6 +133,14 @@ The goal is narrow: **detect requests, read parameters.** No hash validation, no
 EM decoder, no compliance checks. A focused gap-filler — not a replacement for
 David Vallejo's excellent Analytics Debugger.
 
+## Privacy
+The extension collects nothing. It decodes the requests the inspected page is already
+sending and shows them to you, locally, in memory, for as long as the panel is open —
+no server, no telemetry, no transmission of any kind. Personal data that appears in the
+panel (hashed or plaintext email, phone, name, address) is data *the inspected website*
+sends to *its own* marketing vendors; showing it is the point of an auditing tool.
+See [PRIVACY.md](PRIVACY.md) for the full policy.
+
 ## Install
 This extension can be installed using the Chrome Web Store: [Tracking Auditor in Chrome Web Store](https://chromewebstore.google.com/detail/tracking-auditor/cngpoecoknpgfjfaafnekjoaeohaejpb)
 
@@ -147,7 +155,8 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
-v1.1.0
+v1.0.1
+- Added a [privacy policy](PRIVACY.md): the extension collects nothing — it decodes and displays, locally and in memory, the tracking requests the inspected page is already sending.
 - Deep Capture: first-party server-side GTM (Tag Gateway) hits dispatched from a service worker on a subdomain (e.g. `data.example.com`) are now captured. The cross-tab guard was requiring an exact origin match and silently dropped these; it now accepts same-site initiators (same registrable domain as the page).
 - Deep Capture: reconnect after the background service worker is recycled. MV3 terminates the worker after a few minutes, which dropped the capture port and silently stopped Deep Capture until it was toggled off and on again — the panel now re-establishes the connection automatically.
 - GA4: new `up ×n` pill showing the number of user properties (`up.*` / `upn.*`), alongside the existing `ep ×n` event-parameter pill.
