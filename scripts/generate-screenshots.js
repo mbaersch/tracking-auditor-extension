@@ -9,10 +9,11 @@
 // Run:  npm run screenshots
 
 import http from 'node:http';
-import { readFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 import { DEMO_BLOCKS } from './fixtures-demo.js';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -148,6 +149,27 @@ function promoHtml(iconDataUri, w, h) {
   </div></body></html>`;
 }
 
+// Playwright writes true-color PNGs (the marquee tile alone is ~200 kB). These
+// are web-store / website assets, so shrink them the way TinyPNG does: lossy
+// palette quantization via libimagequant (sharp's `palette: true`), which drops
+// the marquee to ~40 kB and the panel shots by ~60% with no visible loss. Only
+// overwrite when the result is actually smaller, so re-runs never bloat a file.
+const kb = (n) => (n / 1024).toFixed(1) + ' kB';
+async function optimize(names) {
+  let before = 0, after = 0;
+  for (const n of names) {
+    const p = join(outDir, n);
+    const src = readFileSync(p);
+    const out = await sharp(src).png({ palette: true, quality: 90, effort: 10 }).toBuffer();
+    const kept = out.length < src.length ? out : src;
+    if (out.length < src.length) writeFileSync(p, out);
+    before += src.length;
+    after += kept.length;
+    console.log(`  • ${n.padEnd(28)} ${kb(src.length).padStart(9)} → ${kb(kept.length).padStart(9)}`);
+  }
+  console.log(`Optimized ${names.length} PNGs: ${kb(before)} → ${kb(after)} (−${(100 - after / before * 100).toFixed(0)}%)`);
+}
+
 async function main() {
   mkdirSync(outDir, { recursive: true });
   const server = await startServer();
@@ -202,7 +224,7 @@ async function main() {
   }
 
   console.log(`Generated ${shots.length} assets → webstore/`);
-  for (const s of shots) console.log(`  • ${s}`);
+  await optimize(shots);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

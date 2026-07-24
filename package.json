@@ -10,6 +10,7 @@
     "screenshots": "node scripts/generate-screenshots.js"
   },
   "devDependencies": {
-    "playwright": "^1.49.0"
+    "playwright": "^1.49.0",
+    "sharp": "^0.35.3"
   }
 }
