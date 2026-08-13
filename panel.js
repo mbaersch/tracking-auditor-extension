@@ -370,6 +370,10 @@ function flagPills(r) {
     else if (f.identify) out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
     return out.join('');
   }
+  if (r._batch) {
+    const tip = `Batched POST: this request carried ${r._batch.total} events, one per body line. This card is event ${r._batch.index} of ${r._batch.total} — the query parameters are shared by all of them.`;
+    out.push(`<span class="pill pill-ud" title="${escapeHtml(tip)}">batch ${r._batch.index}/${r._batch.total}</span>`);
+  }
   const f = r.flags;
   if (!f) return '';
   if (f.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
@@ -1226,6 +1230,9 @@ function currentBlock() {
 // the only trusted source for the first-party call — a hit's own payload can
 // claim any dl. When it isn't resolved yet, parsers fall back to 'unknown'
 // rather than assuming first-party.
+//
+// Returns an ARRAY of records (or null): one request can carry several events —
+// a GA4 batch POST sends one urlencoded event per body line.
 function parseRequest(url, postData, pageUrl) {
   for (const p of PARSERS) {
     if (!state.record[p.id]) continue;          // service capture switched off
@@ -1235,7 +1242,8 @@ function parseRequest(url, postData, pageUrl) {
     let r = null;
     try { r = p.parse(url, postData, pageUrl); }
     catch (e) { console.warn(`[tracking-auditor] ${p.id} parser threw on`, url, e); continue; }
-    if (r) return r;
+    if (Array.isArray(r)) { if (r.length) return r; continue; }
+    if (r) return [r];
   }
   return null;
 }
@@ -1267,8 +1275,11 @@ function ingestRequest(req, ts, source) {
   // worker. Flag it so the user knows some hits may be dispatched invisibly.
   if (isTagGatewaySwIframe(req.url)) { showSwNotice(currentBlock()); return; }
   const block = currentBlock();
-  const r = parseRequest(req.url, req.postData, block.navUrl);
-  if (r) { r._source = source; commitRecord(block, r, req, ts); return; }
+  const recs = parseRequest(req.url, req.postData, block.navUrl);
+  if (recs) {
+    for (const r of recs) { r._source = source; commitRecord(block, r, req, ts); }
+    return;
+  }
   // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
   // tracking event, so no parser claims it. When Meta recording is on, register
   // it and arm the 2s "did an event follow?" check.
@@ -1333,13 +1344,15 @@ function decodeTaggrsAndCommit(block, req, ts, source, key) {
   decodeTaggrsRequest(req.url, req.postData, key)
     .then((dec) => {
       if (!dec) return;
-      const r = parseRequest(dec.url, dec.postData, block.navUrl);   // respects per-provider capture switches
-      if (!r) return;
-      r._source = source;
-      r._taggrs = { host: dec.host, clientId: dec.clientId, endpoint: dec.endpoint, cipherU: dec.cipherU, cipherB: dec.cipherB };
-      // Pass the opaque envelope endpoint as the "original" so the detail shows
-      // the encrypted destination; effectiveUrl already holds the decrypted URL.
-      commitRecord(block, r, { url: dec.endpoint, method: dec.method, postData: dec.postData }, ts);
+      const recs = parseRequest(dec.url, dec.postData, block.navUrl);   // respects per-provider capture switches
+      if (!recs) return;
+      for (const r of recs) {
+        r._source = source;
+        r._taggrs = { host: dec.host, clientId: dec.clientId, endpoint: dec.endpoint, cipherU: dec.cipherU, cipherB: dec.cipherB };
+        // Pass the opaque envelope endpoint as the "original" so the detail shows
+        // the encrypted destination; effectiveUrl already holds the decrypted URL.
+        commitRecord(block, r, { url: dec.endpoint, method: dec.method, postData: dec.postData }, ts);
+      }
     })
     .catch(() => { /* wrong key / auth-tag failure → not decodable, drop silently */ });
 }

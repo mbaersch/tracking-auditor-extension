@@ -11,6 +11,7 @@ import {
   parseGa4Products,
   ga4PiiFields,
 } from '../lib/ga4.js';
+import { docLocation } from '../lib/cardfields.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64');
 
@@ -81,6 +82,47 @@ test('POST body params are parsed (urlencoded)', () => {
   assert.ok(r);
   assert.equal(r.en, 'add_to_cart');
   assert.equal(r.method, 'POST');
+});
+
+// Real batched POST captured on analytrix.de: three events in one request, the
+// first one a virtual pageview that overrides dl in its own body line.
+const BATCH_URL = 'https://region1.google-analytics.com/g/collect?v=2&tid=G-0Z2X040Q21&gcs=G101&cid=662598162.1777878840&sid=1786643247&dl=https%3A%2F%2Fwww.analytrix.de%2Fga4-pii-check.html&dt=PII-Check&_s=3';
+const BATCH_BODY = [
+  'en=page_view&_ee=1&gap.retry=1&ep.bot_score=OK&_et=2340&dl=https%3A%2F%2Fwww.analytrix.de%2Fpii-check%2Fresult',
+  'en=check_finished&_ee=1&gap.retry=1&ep.bot_score=OK&ep.element_type=pii_check&ep.element_id=&_et=4',
+  'en=findings&_ee=1&gap.retry=1&ep.bot_score=OK&ep.element_type=PIICheck&ep.element_id=0&_et=1517',
+].join('\n');
+
+test('batched POST yields one record per body line', () => {
+  const rs = parseGa4Request(BATCH_URL, BATCH_BODY);
+  assert.ok(Array.isArray(rs));
+  assert.deepEqual(rs.map((r) => r.en), ['page_view', 'check_finished', 'findings']);
+  assert.deepEqual(rs.map((r) => r._batch), [{ index: 1, total: 3 }, { index: 2, total: 3 }, { index: 3, total: 3 }]);
+  // Shared query params stay on every record, body params never bleed across events.
+  for (const r of rs) {
+    assert.equal(r.tid, 'G-0Z2X040Q21');
+    assert.equal(r.method, 'POST');
+    assert.equal(r.consent.analyticsStorage, 'granted');
+  }
+  assert.equal(rs[0].bodyParams['ep.element_type'], undefined);
+  assert.equal(rs[1].bodyParams['ep.element_type'], 'pii_check');
+  assert.equal(rs[2].bodyParams['ep.element_type'], 'PIICheck');
+  assert.deepEqual(rs.map((r) => r.flags.epCount), [1, 3, 3]);
+  // The next line must not be glued onto the previous value.
+  assert.equal(rs[0].bodyParams.dl, 'https://www.analytrix.de/pii-check/result');
+});
+
+test('batched POST: a per-event dl overrides the shared query dl', () => {
+  const rs = parseGa4Request(BATCH_URL, BATCH_BODY);
+  assert.equal(docLocation(rs[0]), 'https://www.analytrix.de/pii-check/result');   // virtual pageview
+  assert.equal(docLocation(rs[1]), 'https://www.analytrix.de/ga4-pii-check.html'); // falls back to the shared dl
+});
+
+test('a single-event POST body stays one record', () => {
+  const r = parseGa4Request(BATCH_URL, 'en=purchase&_et=12\n');
+  assert.ok(!Array.isArray(r));
+  assert.equal(r.en, 'purchase');
+  assert.equal(r._batch, null);
 });
 
 test('user_data summary from structured ep.user_data params', () => {
