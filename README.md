@@ -155,6 +155,10 @@ If you want to modify the extension or run an unreleased version, load it unpack
 
 ## Changelog
 
+v1.0.2
+- GA4: batched POSTs are decoded correctly. A GA4 request can carry several events, one urlencoded parameter set per body line — these were parsed as a single set, so the first event swallowed the other events' parameters and only one card appeared. Each event now gets its own card (marked `batch n/N`), with the shared query parameters on all of them and the body parameters strictly per event.
+- A `dl` sent in the POST body now wins over the one in the query string, so a virtual pageview's card shows the path it actually reported instead of the real page URL.
+
 v1.0.1
 - Added a [privacy policy](PRIVACY.md): the extension collects nothing — it decodes and displays, locally and in memory, the tracking requests the inspected page is already sending.
 - Deep Capture: first-party server-side GTM (Tag Gateway) hits dispatched from a service worker on a subdomain (e.g. `data.example.com`) are now captured. The cross-tab guard was requiring an exact origin match and silently dropped these; it now accepts same-site initiators (same registrable domain as the page).
