@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    /* Standalone on purpose: a five-line popup should not pull in the panel's
+       stylesheet. Palette and type scale mirror panel.html so the two read as
+       one product, and the size follows the browser's font setting like the
+       panel does. */
+    :root {
+      --primary: #C44E00;
+      --secondary: #005141;
+      --surface: #ffffff;
+      --surface-alt: #f1f5f9;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --secondary: #2dd4bf;
+        --surface: #1c1f26;
+        --surface-alt: #262a33;
+        --text: #e2e8f0;
+        --text-muted: #94a3b8;
+        --border: #2f3540;
+      }
+    }
+    html { font-size: 100%; }
+    body {
+      margin: 0; width: 22rem; padding: 1rem;
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 0.875rem; line-height: 1.5;
+      background: var(--surface); color: var(--text);
+    }
+    .hd { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.75em; }
+    .hd img { width: 2em; height: 2em; }
+    .hd h1 { font-size: 1.0625rem; margin: 0; font-weight: 700; }
+    .hd span { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+               letter-spacing: 0.05em; color: var(--secondary); }
+    p { margin: 0 0 0.75em; }
+    p:last-child { margin-bottom: 0; }
+    .tab { font-weight: 700; color: var(--primary); white-space: nowrap; }
+    kbd { font-family: inherit; font-size: 0.8125rem; background: var(--surface-alt);
+          border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 0.25rem;
+          padding: 0.05em 0.4em; white-space: nowrap; }
+    .muted { color: var(--text-muted); font-size: 0.8125rem; }
+  </style>
+</head>
+<body>
+  <div class="hd">
+    <img src="icon-48.png" alt="">
+    <div>
+      <h1>Tracking Auditor</h1>
+      <span>DevTools extension</span>
+    </div>
+  </div>
+  <p>
+    There is nothing to see here — this extension lives in Chrome's Developer Tools.
+  </p>
+  <p>
+    Open them from the Chrome menu under <strong>More Tools &rsaquo; Developer Tools</strong>,
+    then pick the <span class="tab">Tracking Auditor</span> tab to inspect the tracking
+    requests of the page you are on.
+  </p>
+  <!-- Two lines rather than a parenthetical: at this width the bracket wraps and
+       strands "on macOS)" on a line of its own. -->
+  <p class="muted">
+    Shortcut: <kbd>F12</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd><br>
+    On macOS: <kbd>⌥</kbd>+<kbd>⌘</kbd>+<kbd>I</kbd>
+  </p>
+</body>
+</html>
