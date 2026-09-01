@@ -1,6 +1,6 @@
 Yet another debugger extension. Tracking Auditor is a lightweight Chrome DevTools extension that records and shows requests of the inspected tab, including GA4 transports that common debuggers might miss. The goal is narrow: "detect requests, read parameters, even if a Google Tag Gateway, Stape custom loader or custom path is used". 
 
-As a focused "gap-filler" (not a replacement for David Vallejo's excellent Analytics Debugger) it started as a personal tool for quick debugging in those edge cases where no typical request format / path is used for GA4 requests. But as most marketing setups include other client-side tags, I added more formats instead of switching between several "Pixel Helpers" (see list of services and monitored request types below). 
+As a focused "gap-filler" (not a replacement for David Vallejo's excellent Analytics Debugger) it started as a personal tool for quick debugging in those edge cases where no typical request format / path is used for GA4 requests. But as most marketing setups include other client-side tags, I added more formats instead of switching between several "Pixel Helpers".
 
 This Extension adds a "Tracking Auditor" tab to DevTools when installed. 
 
