@@ -31,7 +31,7 @@ Bing / Microsoft UET:
 - Reads `asc` consent signal ("granted/denied" or "unset" to mark a missing asc signal)
 
 Meta (Facebook) Pixel:
-- Standard pixel GET or form POST)
+- Standard pixel (GET or form POST)
 - All events 
 
 LinkedIn Insight Tag:
@@ -81,7 +81,7 @@ Criteo:
 - OneTag event beacon 
 - All events 
 - Reads (double-encoded) item array and derives a revenue total (Σ price × quantity, marked
-  "computed" 
+  "computed")
 - Email
 - Shared cross-vendor cookies 
 - Consent 
