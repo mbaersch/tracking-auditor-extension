@@ -127,7 +127,7 @@ v1.0.1
 - Optimized handling for first-party detection
 - new option to switch off background color-coding for different vendors
  
-v.0.9.0
+v0.9.0
 - added Hubspot tracking 
 - PII / user-data block in request details
 - Service-worker notice: detects the Google Tag Gateway first-party service-worker loader and shows a compact per-block strip — hits may be dispatched from the worker and stay invisible to the page-scoped DevTools network. UI-only (not a card), with a "mute for session" link

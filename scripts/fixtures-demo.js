@@ -59,6 +59,34 @@ const hubspotForm = JSON.stringify({
   version: 'collected-forms-embed-js-static-1.4883', collectedFormId: 'contact-form',
 });
 
+// OpenAI ads pixel order_created. Shows what the card can do that no pixel
+// helper does: the amount arrives in minor units (9995 → 99.95 EUR), and the
+// user block is split by origin — `in` is what the site passed to init, `fm` is
+// what automatic advanced matching scraped off the page. Two different demo
+// hashes so both rows are visibly distinct.
+const openaiOrder = JSON.stringify({
+  obref: 'a7f3c1d2-4e5b-4a91-8c3d-2b6e9f0a1c47',
+  oppref: 'oai-demo-click-1024',
+  events: [{
+    type: 'order_created',
+    timestamp_ms: 1782761414000,
+    id: 'ORD-1024',
+    source_url: 'https://atomkraftwerke24.de/shop/',
+    data: {
+      type: 'contents', amount: 9995, currency: 'EUR',
+      contents: [{ id: '119', name: 'Fuel Rods (6-pack)', content_type: 'product', quantity: 1, amount: 9995, currency: 'EUR' }],
+    },
+  }],
+  user: {
+    in: {
+      em: 'e5c8e5ed5d033ebd4c707cc0f991a9940ba2e330483064eda4d068223fbefcab',
+      ph: '8b47a52ed04d068c3a9c5632b98cec18780a9f9f4099d4f8afe233970ce116fe',
+      co: 'DE', ct: 'Hamburg',
+    },
+    fm: { em: ['6d91ea2f7e0eea059183972f9d6fe225ee7d4248e4281f1ce5a90e33f25448b6'] },
+  },
+});
+
 // Each block is one page load. requests[] are replayed in order, and the panel
 // stacks newest-on-top — so the LAST request in a block becomes that block's top
 // card. Order is deliberately GA4-last (top) and HubSpot-first (bottom): GA4 is
@@ -105,6 +133,9 @@ export const DEMO_BLOCKS = [
       { url: 'https://bat.bing.com/action/0?ti=111111111111&tm=gtm002&Ver=2&mid=efaaf29c-46db-49ce-9945-7bfc2a75fb45&bo=6&msclkid=N&prodid=42&pagetype=purchase&ecomm_totalvalue=99.95&ecomm_category=Accessories&tpp=1&ea=purchase&gv=99.95&en=Y&p=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&sw=1920&sh=1080&sc=32&evt=custom&asc=G&cdb=AQAS&rn=957294' },
       // Google Ads measurement add_to_cart
       { url: 'https://www.google.com/ccm/collect?rcb=18&frm=0&ae=g&auid=1235240376.1778240583&dt=Shop&en=add_to_cart&dl=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&rnd=294733418.1782761414&navt=r&npa=0&epn.value=99.95&_tu=CA&gtm=45Pe66p0v9210171140&gcs=G111&gcd=13r3r3r2r5l1&dma=1&tids=AW-1071635065&tid=AW-1071635065&fmt=8' },
+      // OpenAI ads pixel order_created — third from top, so the newest service
+      // is visible in the overview shot without displacing GA4 or Meta.
+      { url: 'https://bzr.openai.com/v1/sdk/events?pid=DemoPixel0123456789abc&st=oaiq-web&sv=0.1.32&t=1782761414100&ec=1', method: 'POST', postData: { text: openaiOrder } },
       // Meta Purchase (second-to-top)
       { url: 'https://www.facebook.com/tr/?id=1402533720264604&ev=Purchase&dl=https%3A%2F%2Fatomkraftwerke24.de%2Fshop%2F&cd%5Bvalue%5D=99.95&cd%5Bcurrency%5D=EUR' },
       // GA4 purchase — top card overall; 02-event-detail expands this one
