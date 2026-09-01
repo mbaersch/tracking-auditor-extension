@@ -1,0 +1,145 @@
+Yet another debugger extension. Tracking Auditor is a lightweight Chrome DevTools extension that records and shows requests of the inspected tab, including GA4 transports that common debuggers might miss. The goal is narrow: "detect requests, read parameters, even if a Google Tag Gateway, Stape custom loader or custom path is used". 
+
+As a focused "gap-filler" (not a replacement for David Vallejo's excellent Analytics Debugger) it started as a personal tool for quick debugging in those edge cases where no typical request format / path is used for GA4 requests. But as most marketing setups include other client-side tags, I added more formats instead of switching between several "Pixel Helpers" (see list of services and monitored request types below). 
+
+This Extension adds a "Tracking Auditor" tab to DevTools when installed. 
+
+How To Use
+==========  
+Hit Start & Reload — the page reloads and every hit is listed in blocks per navigation, in order, with event name, parameters, a user-data summary and (where present) the consent state decoded.
+
+A collapsible "Record" settings row switches services on/off (capture), and an independent
+"Show" filter row (service pills + fulltext) narrows the displayed log. A pill starts pulsing
+once its service has actually sent something, so you can see what a site really uses without
+unhiding anything.
+
+Scope
+=====
+
+GA4:
+- Standard GA4 
+- First-party sGTM / Google Tag Gateway 
+- Stape Custom Loader 
+- taggrs Custom Loader
+- Plaintext custom delivery paths 
+
+Google Ads:
+- Conversion 
+- remarketing/audience
+- enhanced-conversions UPD
+-  Shows dynamic-remarketing product data / line items, consent 
+- Multiple Requests are folded into a single card 
+
+Floodlight (Google Marketing Platform — CM360 / DV360):
+- counter / activity
+- sales 
+- Multiple Requests are folded into a single card 
+
+Bing / Microsoft UET:
+- Standard tag and first-party proxied `action`
+- Reads `asc` consent signal ("granted/denied" or "unset" to mark a missing asc signal)
+
+Meta (Facebook) Pixel:
+- Standard pixel GET or form POST)
+- All events 
+
+LinkedIn Insight Tag:
+- Standard beacon folded into a single card, 
+- page views 
+- conversions
+- Enhanced-conversions POST with hashed email, click ids
+
+TikTok Pixel:
+- Standard pixel 
+- All events
+- Advanced matching, data quality 
+
+Pinterest Tag:
+- Standard tag 
+- All events
+- Enhanced match 
+
+Reddit Pixel: 
+- All events 
+- Conversion data 
+- Both manual and auto-collected hashed identifiers
+
+Snapchat Pixel:
+- All events 
+- full hashed identifier set — email, phone, name, geo and age 
+
+OpenAI ads pixel:
+- All standard events plus custom ones
+- Batched requests split into one card per event
+- Separates user data the site passed in from what the pixel collected off the page itself
+- Consent state, click id, deduplication keys
+- Shows the pixel's own diagnostic event, including events it rejected before sending
+
+HubSpot:
+- Pageview
+- Custom events
+- Automatic collection 
+- Collected forms
+- Identity data (email / name / phone). 
+
+Criteo:
+- OneTag event beacon 
+- All events 
+- Reads (double-encoded) item array and derives a revenue total (Σ price × quantity, marked
+  "computed" 
+- Email
+- Shared cross-vendor cookies 
+- Consent 
+
+Taboola:
+- Pixel beacons / page view
+- All events
+- Consent 
+- Hashed email
+
+Outbrain:
+- Page View
+- All events
+- Conversion pixel
+
+Awin:
+- MasterTag 
+- Sale
+- Product-level tracking
+
+---
+
+Changelog:
+-----------------
+
+v1.1.0
+- New service: the OpenAI ads pixel (default "on"). Its requests arrive batched, so they are split into one card per event, and the pixel's own diagnostic event gets a card too — it states the consent the SDK acted on and names any events it rejected before sending.
+- For that pixel, user data is separated by where it came from: what the site handed over on purpose, versus what automatic advanced matching picked up from the page's forms, scripts and markup.
+- The panel now takes its font size from the browser instead of forcing a small fixed one, and every size scales with it. If you had to zoom to read comfortably, you no longer should.
+- Filter pills show which services are actually firing: a pulsing dot appears the moment a service sends something, and stays until you stop recording — regardless of whether its cards are currently shown.
+
+v1.0.2
+- fixed decoding of batched GA4 events. Now renders multiple cards correctly. 
+
+v1.0.1
+- first "complete" release also includes Floodlight (to fill the gap in the Google stack; default "on"), Criteo, Taboola, and Outbrain (default "off") and also Awin (probably the only affiliate network in this tool; default "off") as new services. If you want to debug any of them (except Floodlght), switch recording on first once.
+- taggrs Custom Loader detection and decryption
+- Optimized handling for first-party detection
+- new option to switch off background color-coding for different vendors
+ 
+v.0.9.0
+- added Hubspot tracking 
+- PII / user-data block in request details
+- Service-worker notice: detects the Google Tag Gateway first-party service-worker loader and shows a compact per-block strip — hits may be dispatched from the worker and stay invisible to the page-scoped DevTools network. UI-only (not a card), with a "mute for session" link
+- Deep Capture (service-worker / edge hits): an opt-in mode that adds a second capture source via `chrome.webRequest` (in a new background service worker), catching tracking hits dispatched from a service worker's own scope — first-party Google Tag Gateway, Cloudflare edge, and Bing UET
+- Newest-first ordering: new hits and page-load blocks are inserted at the top instead of the bottom, so the freshest hit stays in view and Chrome's scroll anchoring keeps whatever you're reading in place. The "follow" auto-scroll toggle is removed as redundant 
+- Meta silent-pixel warning: a pixel can initialise yet send no  tracking events occur — a silent tracking failure, typically caused by Meta's traffic-permission settings 
+- GA4 e-commerce items: product params are decoded into readable fields 
+
+v0.7.2
+- Service-worker de-duplication: when a service worker (e.g. Cloudflare Zaraz) intercepts a page's `fetch()`, DevTools surfaces the hit twice — the aborted page-side request that never reached the network, plus the worker's real outgoing request. The aborted phantom (network error and no server connection) is now dropped, so each logical hit counts once
+
+v0.7.1
+- Added Reddit Pixel and Snapchat Pixel
+- The `/wa/` enhanced-conversions POST from LinkedIn is now decoded asynchronously into its own card with hashed email, Signal Type and collected IDs.
+- UI improvements
