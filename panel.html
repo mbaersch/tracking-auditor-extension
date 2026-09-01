@@ -40,6 +40,16 @@
       --border: #e2e8f0;
       --code-bg: #f1f5f9;
       --danger-text: #991b1b;
+      /* Type scale, in rem so it follows the browser's root size. --fs-md is the
+         body text and the anchor: shift it and the whole panel moves with it.
+         Everything else in the sheet uses em/rem against these, so no size is a
+         standalone pixel value any more. */
+      --fs-xxs: 0.75rem;      /* pills, method/source chips, table heads */
+      --fs-xs:  0.8125rem;    /* card head line, monospace dumps, section labels */
+      --fs-sm:  0.875rem;     /* control rows, detail tables, notices */
+      --fs-md:  1rem;         /* body */
+      --fs-lg:  1.0625rem;    /* card title, toolbar buttons */
+      --fs-xl:  1.125rem;     /* caret */
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -79,35 +89,44 @@
     }
 
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 12px; }
+    /* The root size is the browser's, not ours: a panel that hard-codes 12px
+       overrides whatever the user set for readability. Everything below is
+       expressed against it, so the whole UI scales from these six tokens —
+       and 1px hairlines stay 1px on purpose (a scaled border lands on a
+       half-pixel and blurs). */
+    html { font-size: 100%; }
+    body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: var(--fs-md); }
 
     /* Sticky header: toolbar + collapsible record settings + filter bar */
     .head { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: 1px solid var(--border); }
-    .toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; }
-    .toolbar button {font-size: 15px;padding: 5px 12px;border: 1px solid var(--border);background: var(--surface);color: var(--text);border-radius: 6px;cursor: pointer;font-weight: 600;font-family: inherit;}
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; }
+    .toolbar button { font-size: var(--fs-lg); padding: 0.35em 0.75em; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 0.375rem; cursor: pointer; font-weight: 600; font-family: inherit; }
     .toolbar button:hover { border-color: var(--primary); color: var(--primary); }
     .toolbar button.recording { background: #dc2626; color: #fff; border-color: #dc2626; }
     .toolbar button.recording:hover { filter: brightness(1.05); color: #fff; }
-    .toolbar button.icon-btn { padding: 5px 9px; display: inline-flex; align-items: center; justify-content: center; }
-    .toolbar button.icon-btn svg { display: block; }
+    .toolbar button.icon-btn { padding: 0.35em 0.55em; display: inline-flex; align-items: center; justify-content: center; }
+    /* Overrides the SVGs' width/height attributes so the icons track the button text. */
+    .toolbar button.icon-btn svg { display: block; width: 1em; height: 1em; }
     .toolbar button.icon-btn.active { border-color: var(--primary); color: var(--primary); background: var(--surface-hover-primary); }
-    .rec-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: auto; }
+    .rec-status { display: inline-flex; align-items: center; gap: 0.45em; font-size: var(--fs-sm); color: var(--text-muted); margin-left: auto; }
 
     /* Record settings ("in") and filter bar ("out") — independent control rows */
-    .ctl-row { display: flex; gap: 12px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 11px; flex-wrap: wrap; }
+    .ctl-row { display: flex; gap: 0.85em; align-items: center; padding: 0.45em 0.85em; border-top: 1px solid var(--border); font-size: var(--fs-sm); flex-wrap: wrap; }
     .ctl-row[hidden] { display: none; }
-    .ctl-label { font-weight: 700; color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px; }
-    .ctl-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); }
+    .ctl-label { font-weight: 700; color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.05em; font-size: var(--fs-xs); }
+    .ctl-row label { display: inline-flex; align-items: center; gap: 0.3em; cursor: pointer; color: var(--text); }
     .ctl-row input[type="checkbox"] { accent-color: var(--secondary); cursor: pointer; margin: 0; }
     .ctl-hint { color: var(--text-faint); font-style: italic; }
     /* Bulk toggle links for the Show row — dezent, keep out of the tab-order weight */
-    .ctl-links { display: inline-flex; gap: 4px; align-items: center; color: var(--text-fainter); }
+    .ctl-links { display: inline-flex; gap: 0.3em; align-items: center; color: var(--text-fainter); }
     .ctl-links a { color: var(--text-muted); cursor: pointer; text-decoration: none; border-bottom: 1px dotted var(--text-fainter); }
     .ctl-links a:hover { color: var(--primary); border-bottom-color: var(--primary); }
     /* Filter pills ("out" side): compact toggles built only for enabled/seen
        services, so the bar carries no chip for a service you never record. */
-    #fltPills { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-    .flt-pill { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-muted); cursor: pointer; user-select: none; }
+    #fltPills { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
+    /* A capsule radius is a shape, not a measurement — 999px keeps the ends round
+       at any text size, where a fixed 10px would square off as the pill grows. */
+    .flt-pill { font-size: var(--fs-xxs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.2em 0.6em; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-muted); cursor: pointer; user-select: none; }
     .flt-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
     .flt-pill:hover { border-color: var(--primary); }
     /* "live": this service produced at least one hit in the running recording.
@@ -117,19 +136,19 @@
        Green, not the indicator's red — red means "recording", not "this service
        is firing". Reduced motion keeps the solid dot and drops the ring. */
     .flt-pill.live::before {
-      content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-      margin-right: 5px; vertical-align: 1px; background: #10b981;
+      content: ''; display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%;
+      margin-right: 0.42em; vertical-align: 0.05em; background: #10b981;
       animation: flt-live-pulse 1.5s infinite;
     }
     .flt-pill.live.active::before { background: #fff; animation-name: flt-live-pulse-on; }
     @keyframes flt-live-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
-      70%  { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+      70%  { box-shadow: 0 0 0 0.4em rgba(16,185,129,0); }
       100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
     @keyframes flt-live-pulse-on {
       0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
-      70%  { box-shadow: 0 0 0 5px rgba(255,255,255,0); }
+      70%  { box-shadow: 0 0 0 0.4em rgba(255,255,255,0); }
       100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -139,25 +158,25 @@
        narrow viewport, row-gap gives the wrapped rows breathing room instead of
        letting the pills sit flush under the links. column-gap replaces the inline
        whitespace that flex would otherwise collapse. */
-    .flt-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+    .flt-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; }
     .flt-group[hidden] { display: none; }
     .settings { background: var(--surface-alt); }
-    #filterText { flex: 1; min-width: 100px; font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-family: inherit; }
+    #filterText { flex: 1; min-width: 8rem; font-size: var(--fs-sm); padding: 0.25em 0.6em; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--surface); color: var(--text); font-family: inherit; }
     #filterText:focus { outline: none; border-color: var(--primary); }
-    .rec-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-fainter); }
+    .rec-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--text-fainter); }
     .rec-dot.live { background: #dc2626; animation: rec-pulse 1.5s infinite; }
-    @keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 70% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+    @keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 70% { box-shadow: 0 0 0 0.5em rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
 
     /* Empty state */
-    .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 12px; font-style: italic; }
+    .empty { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: var(--fs-md); font-style: italic; }
 
     /* Navigation blocks */
-    #blocks { padding: 8px 12px 24px; }
-    .blk { margin-bottom: 16px; }
-    .blk-head { font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px; color: var(--text-strong); padding: 6px 8px; background: var(--surface-alt); border-radius: 6px; border-left: 3px solid var(--secondary); word-break: break-all; }
-    .blk-head .blk-time { color: var(--text-faint); margin-right: 8px; }
-    .blk-events { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-    .blk-notice { display: flex; align-items: baseline; gap: 6px; font-size: 11px; line-height: 1.4; color: var(--text-strong); background: var(--surface-warm); border-left: 3px solid var(--danger-text); border-radius: 4px; padding: 4px 8px; }
+    #blocks { padding: 0.5rem 0.75rem 1.5rem; }
+    .blk { margin-bottom: 1rem; }
+    .blk-head { font-family: 'Fira Code', 'Consolas', monospace; font-size: var(--fs-sm); color: var(--text-strong); padding: 0.45em 0.6em; background: var(--surface-alt); border-radius: 0.375rem; border-left: 3px solid var(--secondary); word-break: break-all; }
+    .blk-head .blk-time { color: var(--text-faint); margin-right: 0.6em; }
+    .blk-events { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }
+    .blk-notice { display: flex; align-items: baseline; gap: 0.45em; font-size: var(--fs-sm); line-height: 1.4; color: var(--text-strong); background: var(--surface-warm); border-left: 3px solid var(--danger-text); border-radius: 0.25rem; padding: 0.3em 0.6em; }
     .blk-notice-icon { color: var(--danger-text); font-weight: 700; }
     .blk-notice-text { flex: 1; }
     .blk-notice-mute { color: var(--primary); cursor: pointer; white-space: nowrap; text-decoration: underline; }
@@ -177,7 +196,7 @@
     /* Event cards — tinted per provider so a mixed stream scans easily: GA4 amber,
        Google Ads peach (a second Google warm), Meta blue, Bing teal, TikTok fuchsia,
        Pinterest red, LinkedIn azure; masked GA4 transports run a touch warmer. */
-    .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+    .ev { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.55em 0.7em; cursor: pointer; }
     .ev.p-ga4    { background: var(--surface-warm); }
     .ev.p-meta   { background: var(--surface-cool); }
     .ev.p-uet    { background: var(--surface-teal); }
@@ -199,21 +218,21 @@
        surface so a busy mixed stream stops competing for attention; the provider
        pills still carry the color signal. The #blocks id wins over .ev.p-* / .ev.t-*. */
     #blocks.no-tint .ev { background: var(--surface); }
-    .ev-head { display: flex; gap: 6px; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
+    .ev-head { display: flex; gap: 0.45em; align-items: baseline; font-family: 'Fira Code', 'Consolas', monospace; font-size: var(--fs-xs); color: var(--text-muted); flex-wrap: wrap; }
     .ev-time { color: var(--text); }
-    .ev-method { font-weight: 700; color: var(--secondary); font-size: 9px; }
+    .ev-method { font-weight: 700; color: var(--secondary); font-size: var(--fs-xxs); }
     .ev-tid { color: var(--secondary); font-weight: 700; }
-    .ev-src { font-weight: 700; font-size: 9px; color: #fff; background: var(--primary); border-radius: 3px; padding: 0 4px; letter-spacing: .3px; text-transform: uppercase; }
-    .ev-caret { margin-left: auto; color: var(--text-muted); font-size: 14px; line-height: 1; user-select: none; padding: 0 2px; }
+    .ev-src { font-weight: 700; font-size: var(--fs-xxs); color: #fff; background: var(--primary); border-radius: 0.2em; padding: 0 0.35em; letter-spacing: 0.05em; text-transform: uppercase; }
+    .ev-caret { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xl); line-height: 1; user-select: none; padding: 0 0.15em; }
     .ev:hover .ev-caret { color: var(--primary); }
-    .ev-name { font-weight: 700; font-size: 13px; color: var(--text); text-transform: none; margin: 4px 0 2px; }
+    .ev-name { font-weight: 700; font-size: var(--fs-lg); color: var(--text); text-transform: none; margin: 0.25em 0 0.12em; }
     .ev.ev-alert .ev-name { color: var(--danger-text); }
-    .ev-dl { font-family: 'Fira Code', 'Consolas', monospace; font-size: 10px; color: var(--text-muted); word-break: break-all; line-height: 1.3; margin: 2px 0; }
-    .ev-pills { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
-    .ev-summary { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+    .ev-dl { font-family: 'Fira Code', 'Consolas', monospace; font-size: var(--fs-xs); color: var(--text-muted); word-break: break-all; line-height: 1.3; margin: 0.15em 0; }
+    .ev-pills { display: flex; gap: 0.25em; flex-wrap: wrap; margin-top: 0.3em; }
+    .ev-summary { display: flex; gap: 0.25em; flex-wrap: wrap; margin-top: 0.3em; }
 
     /* Pills */
-    .pill { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 6px; border-radius: 10px; white-space: nowrap; cursor: help; }
+    .pill { font-size: var(--fs-xxs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.2em 0.55em; border-radius: 999px; white-space: nowrap; cursor: help; }
     .pill-standard { background: #d1fae5; color: #065f46; }
     .pill-stape    { background: #cffafe; color: #155e75; }
     .pill-taggrs   { background: #fce7f3; color: #9d174f; }
@@ -247,22 +266,23 @@
     .pill-consent-unset   { background: #ffedd5; color: #9a3412; }
 
     /* Inline detail */
-    .ev-detail { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .ev-detail { margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
     .ev-detail[hidden] { display: none; }
-    .det-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .det-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .det-table td:first-child { white-space: nowrap; color: var(--text-strong); font-weight: 600; width: 1px; padding-right: 12px; }
+    .det-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+    .det-table td { padding: 0.3em 0.45em; border-bottom: 1px solid var(--border); vertical-align: top; }
+    /* width:1px is the shrink-to-fit table idiom, not a measurement — leave it. */
+    .det-table td:first-child { white-space: nowrap; color: var(--text-strong); font-weight: 600; width: 1px; padding-right: 0.85em; }
     .det-table td:nth-child(2) { word-break: break-all; font-family: 'Fira Code', 'Consolas', monospace; }
-    .det-section { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); font-weight: 700; margin: 8px 0 2px; }
-    .det-dump { font-size: 10px; font-family: 'Fira Code', 'Consolas', monospace; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-width: 100%; margin: 2px 0 0; padding: 6px; background: rgba(127,127,127,0.08); border-radius: 4px; }
-    .det-note { font-size: 11px; line-height: 1.5; color: var(--text); margin: 2px 0 0; padding: 6px 8px; background: rgba(127,127,127,0.08); border-radius: 4px; }
+    .det-section { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 700; margin: 0.6em 0 0.15em; }
+    .det-dump { font-size: var(--fs-xs); font-family: 'Fira Code', 'Consolas', monospace; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-width: 100%; margin: 0.15em 0 0; padding: 0.45em; background: rgba(127,127,127,0.08); border-radius: 0.25rem; }
+    .det-note { font-size: var(--fs-sm); line-height: 1.5; color: var(--text); margin: 0.15em 0 0; padding: 0.45em 0.6em; background: rgba(127,127,127,0.08); border-radius: 0.25rem; }
     .det-note a { color: var(--primary); }
     /* PII / user-data block: field (code) · category (readable) · detected hash form */
-    .pii-table th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-faint); font-weight: 700; padding: 2px 6px; border-bottom: 1px solid var(--border); }
+    .pii-table th { text-align: left; font-size: var(--fs-xxs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 700; padding: 0.2em 0.5em; border-bottom: 1px solid var(--border); }
     .pii-table td:first-child { font-family: 'Fira Code', 'Consolas', monospace; }
     .pii-table td:nth-child(2) { font-family: inherit; word-break: normal; color: var(--text); }
     .pii-note { color: var(--text-faint); font-style: italic; }
-    code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; color: var(--primary); }
+    code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 0.2em; color: var(--primary); }
   </style>
 </head>
 <body>
