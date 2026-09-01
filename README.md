@@ -1,6 +1,6 @@
 # Tracking Auditor Extension
 
-![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, Floodlight, LinkedIn, Reddit, Snapchat, HubSpot and Criteo hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
+![The Tracking Auditor DevTools panel: a live, per-page stream of decoded GA4, Meta, Bing, TikTok, Pinterest, Google Ads, Floodlight, LinkedIn, Reddit, Snapchat, OpenAI, HubSpot, Criteo, Taboola, Outbrain and Awin hits — each card tinted per service with event, ID, consent and parameter pills, above a service-filter pill bar.](webstore/01-overview.png)
 
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
 **TikTok**, **Pinterest**, **Google Ads**, **Floodlight**, **LinkedIn**, **Reddit**,
@@ -174,7 +174,7 @@ v1.1.0
 - OpenAI's own `oai::diagnostic` event is surfaced as a card of its own — it reports the consent the SDK acted on and any events it rejected before sending, with the reason.
 - The OpenAI pixel has no consent mode: a single boolean, no purposes, no CMP signal, and it defaults to granted. The consent pill says what the SDK acted on and its tooltip states that "granted" also covers a site that never asked.
 - **Readable by default.** The panel used to force a 12px base font and size everything in fixed pixels, which ignored your browser's font setting and needed two zoom steps to read comfortably. It now follows the browser's root size (16px by default) and derives every size from it, so the whole UI scales with your own setting — and with the browser zoom, proportionally instead of piecemeal.
-- The **Show** filter pills now mark which services are actually **live**: a service that has fired at least once since you pressed Start gets a dot and a stronger border, and pulses once the moment its first hit arrives. The marker is independent of the filter — a service you have hidden can still show as live — spans page loads, and survives Clear; it resets on the next Start.
+- The **Show** filter pills now mark which services are actually **live**: a service that has fired at least once since you pressed Start gets a pulsing dot, the same treatment as the record indicator. The marker is independent of the filter — a service you have hidden can still show as live — spans page loads, and survives Clear; it resets on the next Start. It answers "what is this site actually using" without unhiding anything.
 
 v1.0.2
 - GA4: batched POSTs are decoded correctly. A GA4 request can carry several events, one urlencoded parameter set per body line — these were parsed as a single set, so the first event swallowed the other events' parameters and only one card appeared. Each event now gets its own card (marked `batch n/N`), with the shared query parameters on all of them and the body parameters strictly per event.
