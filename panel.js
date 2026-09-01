@@ -1329,7 +1329,7 @@ function appendEventDom(block, r) {
   if (r.provider) {
     let bar = false;
     if (!state.seen.has(r.provider)) { state.seen.add(r.provider); bar = true; }   // ensure a pill exists for this service
-    if (state.recording && !state.fired.has(r.provider)) { state.fired.add(r.provider); pulsePending.add(r.provider); bar = true; }
+    if (state.recording && !state.fired.has(r.provider)) { state.fired.add(r.provider); bar = true; }
     if (bar) renderFilterBar();
   }
   applyCardVisibility(r);
@@ -1783,7 +1783,7 @@ function setRecording(on) {
   state.recording = on;
   // A new recording starts with no service marked live; stopping keeps the
   // markers, so the finished session still reads as "these fired".
-  if (on) { state.fired.clear(); pulsePending.clear(); renderFilterBar(); }
+  if (on) { state.fired.clear(); renderFilterBar(); }
   renderStatus();
   // Starting reloads the inspected page: the post-reload onNavigated opens the
   // first block and we capture from the very first hit — no empty initial block
@@ -1859,7 +1859,6 @@ function loadCapture(data) {
   state.blocks = [];
   state.seen.clear();
   state.fired.clear();                                     // an imported capture is a document, not a live session
-  pulsePending.clear();
   blocksEl.innerHTML = '';
   for (const b of data.blocks) {
     const block = { navUrl: b.navUrl, navTime: b.navTime, events: [] };
@@ -1927,10 +1926,8 @@ function filterProviders() {
   return PROVIDER_ORDER.filter(p => state.record[p] || state.seen.has(p));
 }
 
-// Providers whose "live" marker should pulse once on the next bar render. A
-// provider that fired had recording enabled, so it always has a pill already —
+// A provider that fired had recording enabled, so it always has a pill already —
 // filterProviders needs no knowledge of state.fired.
-const pulsePending = new Set();
 
 function renderFilterBar() {
   const providers = filterProviders();
@@ -1942,12 +1939,6 @@ function renderFilterBar() {
     return `<span class="flt-pill ${active ? 'active' : ''}${live ? ' live' : ''}" data-flt="${escapeHtml(p)}" role="button" tabindex="0" aria-pressed="${active}"${title}>${escapeHtml(PROVIDER_LABEL[p] || p)}</span>`;
   }).join('');
   for (const pill of fltPills.querySelectorAll('.flt-pill')) {
-    // The one-shot pulse is applied to the element, not the markup: the bar is
-    // rebuilt on every filter click, and a class in the markup would replay it.
-    if (pulsePending.delete(pill.dataset.flt)) {
-      pill.classList.add('live-new');
-      pill.addEventListener('animationend', () => pill.classList.remove('live-new'), { once: true });
-    }
     const toggle = () => {
       const p = pill.dataset.flt;
       state.filter[p] = state.filter[p] === false;   // flip
