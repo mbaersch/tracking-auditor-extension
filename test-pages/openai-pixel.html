@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenAI Pixel — capture bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light; --bd: #d8dbe0; --mut: #6b7280; --acc: #10a37f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2328; background: #f6f7f9; }
+  header { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid var(--bd); padding: 12px 20px; }
+  h1 { font-size: 16px; margin: 0 0 6px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); margin: 0 0 10px; }
+  main { padding: 20px; max-width: 1100px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  section { background: #fff; border: 1px solid var(--bd); border-radius: 8px; padding: 14px; }
+  section.wide { grid-column: 1 / -1; }
+  button { font: inherit; padding: 6px 11px; margin: 0 6px 6px 0; border: 1px solid var(--bd); border-radius: 6px; background: #fff; cursor: pointer; }
+  button:hover { border-color: var(--acc); color: var(--acc); }
+  button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+  button.primary:hover { color: #fff; filter: brightness(1.08); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+  .status { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--mut); }
+  .status b { color: #1f2328; font-weight: 600; }
+  .note { font-size: 12px; color: var(--mut); margin: 8px 0 0; }
+  label { display: block; font-size: 12px; color: var(--mut); margin-bottom: 8px; }
+  input { font: inherit; width: 100%; padding: 5px 8px; border: 1px solid var(--bd); border-radius: 5px; }
+  #warn { display: none; background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
+  #warn.on { display: block; }
+  #log { background: #14161a; color: #d7dbe0; border-radius: 8px; padding: 12px; height: 260px; overflow: auto; white-space: pre-wrap; }
+  #log .t { color: #6b7280; }
+  #log .n { color: #7dd3a8; }
+  a { color: var(--acc); }
+</style>
+
+<!-- ── OpenAI pixel: consent decision must precede init, so it is queued here ── -->
+<script>
+  window.OAIQ_PIXEL_ID = new URLSearchParams(location.search).get('pixel') || 'S6i2zvvbTXxj5gR64Szf6a';
+</script>
+<script>
+!function (w, d, s, u) {
+  if (w.oaiq) return;
+  var n = w.oaiq = function () { n.q.push(arguments); };
+  n.q = []; n.queue = n.q;
+  var t = d.createElement(s); t.async = 1; t.src = u;
+  var f = d.getElementsByTagName(s)[0]; f.parentNode.insertBefore(t, f);
+}(window, document, 'script', 'https://bzrcdn.openai.com/sdk/oaiq.min.js');
+</script>
+<script>
+  // Known-plaintext identifiers: the same inputs the sibling ec-data-validator
+  // uses, so one capture serves both flow tests and hash validation.
+  window.TEST_USER = {
+    plain: {
+      email: 'test@example.com',
+      phone: '+49 170 1234567',          // normalizes to 491701234567
+      first_name: 'Max',
+      last_name: 'Mustermann',
+      external_id: 'USER-TEST-0001',
+    },
+    // A second identity for the advanced-matching form. The SDK drops scraped
+    // candidates whose hash equals a value already passed to init, so reusing
+    // the identity above would leave `user.fm` empty.
+    aam: {
+      email: 'aam@example.com',          // 6d91ea2f7e0eea059183972f9d6fe225ee7d4248e4281f1ce5a90e33f25448b6
+      phone: '+49 170 7654321',          // 491707654321 → 9f7f64353347eba16dbdf59da66e3cdd3f0bf948d5ff64f77a589026f4c0a271
+      first_name: 'Erika',               // erika → f83c31f2a4558a2223e1f58d52cd7b3c8e6cf42da50dfc455f61b02b454f7bb0
+      last_name: 'Musterfrau',           // musterfrau → b1ab38b270be987c757b60cf6d5f5f858d231ce12159f5c3dd14dc1500b72312
+      postal_code: '10115',
+    },
+    hashed: {
+      email_sha256: '973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b',
+      phone_number_sha256: '8b47a52ed04d068c3a9c5632b98cec18780a9f9f4099d4f8afe233970ce116fe',
+      first_name_sha256: '9baf3a40312f39849f46dad1040f2f039f1cffa1238c41e9db675315cfad39b6',
+      last_name_sha256: 'e32a370b7912ad78cc6a88fda605a5b3657e9c3b164cee669364aaf3f8cdbb36',
+      external_id_sha256: 'aa5a93cf07de607a273a4afa568503645adb45525e8687add86b7f4b30ea36d2',
+      country: 'DE', city: 'Hamburg', region: 'Hamburg', postal_code: '20095',
+    },
+  };
+
+  var q = new URLSearchParams(location.search);
+  if (q.get('consent') === 'denied') oaiq('consent', false);
+  oaiq('init', {
+    pixelId: window.OAIQ_PIXEL_ID,
+    debug: q.get('debug') !== 'off',
+    user: q.get('user') === 'off' ? undefined : window.TEST_USER.hashed,
+  });
+  if (q.get('autopv') !== 'off') {
+    oaiq('measure', 'page_viewed', { type: 'contents' });
+  }
+</script>
+</head>
+<body>
+
+<header>
+  <h1>OpenAI Pixel — capture bench</h1>
+  <div class="status">
+    <span>pixel <b class="mono" id="s-pixel">…</b></span>
+    <span>sdk <b id="s-sdk">loading…</b></span>
+    <span>consent <b id="s-consent">…</b></span>
+    <span>user in init <b id="s-user">…</b></span>
+    <span><code>__obref</code> <b class="mono" id="s-obref">–</b></span>
+    <span><code>__oppref</code> <b class="mono" id="s-oppref">–</b></span>
+  </div>
+  <div id="warn">
+    <b>Consent is stored as denied.</b> The SDK drops every event before it reaches the network —
+    nothing will show up in a debugger, no matter which button you press. The state lives in
+    <code>localStorage["oaiq_consent"]</code> and the <code>__oaiq_consent</code> cookie and survives
+    reloads, so removing <code>?consent=denied</code> from the URL is not enough.
+    <button id="b-reset" class="primary" style="margin:6px 0 0">Reset pixel state &amp; reload</button>
+  </div>
+</header>
+
+<main>
+<div class="grid">
+
+  <section class="wide">
+    <h2>Page variants (reload)</h2>
+    <button data-href="?">default — user object + auto page_viewed</button>
+    <button data-href="?consent=denied">consent denied before init</button>
+    <button id="b-reset2">reset pixel state (consent + refs)</button>
+    <button data-href="?user=off">no user object in init</button>
+    <button data-href="?autopv=off">no automatic page_viewed</button>
+    <button data-href="?oppref=oai-test-click-0001">landing with <code>oppref</code> click id</button>
+    <button data-href="?pixel=NotARealPixelId0000001">second pixel id (fake)</button>
+    <p class="note">
+      Consent has to be decided before <code>init</code>, so those cases are page loads, not buttons.
+      Without consent the SDK posts a stripped body (<code>events</code> only) with
+      <code>credentials: "omit"</code>. The <code>oppref</code> variant seeds the first-party
+      <code>__oppref</code> cookie the way an ad click would.
+    </p>
+  </section>
+
+  <section>
+    <h2>Engagement</h2>
+    <button data-ev="page_viewed">page_viewed</button>
+    <button data-ev="contents_viewed">contents_viewed</button>
+  </section>
+
+  <section>
+    <h2>Commerce</h2>
+    <button data-ev="items_added">items_added</button>
+    <button data-ev="checkout_started">checkout_started</button>
+    <button data-ev="order_created" class="primary">order_created</button>
+    <p class="note"><code>order_created</code> carries two <code>contents</code> items; <code>amount</code> is in minor units.</p>
+  </section>
+
+  <section>
+    <h2>Lead gen</h2>
+    <button data-ev="lead_created">lead_created</button>
+    <button data-ev="registration_completed">registration_completed</button>
+    <button data-ev="appointment_scheduled">appointment_scheduled</button>
+  </section>
+
+  <section>
+    <h2>Subscriptions</h2>
+    <button data-ev="subscription_created">subscription_created</button>
+    <button data-ev="trial_started">trial_started</button>
+  </section>
+
+  <section>
+    <h2>Custom &amp; options</h2>
+    <button data-ev="custom">custom → newsletter_signup</button>
+    <button id="b-eventid">order_created + event_id (dedup)</button>
+    <button id="b-optout">order_created + opt_out</button>
+    <button id="b-minimal">order_created — minimal payload</button>
+  </section>
+
+  <section>
+    <h2>Consent at runtime</h2>
+    <button id="b-consent-off">consent → false</button>
+    <button id="b-consent-on">consent → true</button>
+    <p class="note">Revoking flushes pending events with <code>sendBeacon</code> and marks the session.</p>
+  </section>
+
+  <section>
+    <h2>Batching</h2>
+    <button id="b-burst">burst: 3 events at once</button>
+    <button id="b-spread">spread: 3 events, 2 s apart</button>
+    <button id="b-all" class="primary">fire every standard event</button>
+    <p class="note">The SDK flushes 1 s after the last event, at the latest 4 s after the first — a burst
+      lands as one POST with <code>ec=3</code>, the spread version as three.</p>
+  </section>
+
+  <section class="wide">
+    <h2>Automatic advanced matching</h2>
+    <p class="note" style="margin-top:0">
+      When AAM is enabled for the account, the SDK scrapes these fields, normalizes and SHA-256-hashes them
+      in-browser and sends them under <code>user.fm</code> / <code>user.js</code> / <code>user.ht</code> —
+      as opposed to <code>user.in</code> for what <code>init</code> was given. The form uses a
+      <em>second</em> identity on purpose: a scraped value whose hash matches one already passed to
+      <code>init</code> is dropped as a duplicate, leaving <code>user.fm</code> empty.
+    </p>
+    <form id="aam-form" onsubmit="return false" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+      <label>Email<input type="email" name="email" id="f-email" autocomplete="email"></label>
+      <label>Phone<input type="tel" name="phone" id="f-phone" autocomplete="tel"></label>
+      <label>First name<input type="text" name="first_name" id="f-first" autocomplete="given-name"></label>
+      <label>Last name<input type="text" name="last_name" id="f-last" autocomplete="family-name"></label>
+      <label>Postal code<input type="text" name="postal_code" id="f-zip" autocomplete="postal-code"></label>
+    </form>
+    <button id="b-fill">fill with AAM identity</button>
+    <button id="b-aam-submit" class="primary">fill + lead_created</button>
+    <button id="b-aam-dupe">fill with the init identity (expect dedupe)</button>
+    <button id="b-aam-js">expose values as JS globals</button>
+  </section>
+
+  <section class="wide">
+    <h2>Call log <button id="b-clear" style="float:right;margin:0">clear</button></h2>
+    <div id="log" class="mono"></div>
+    <p class="note">This is what the page asked for. What actually went over the wire is in the
+      Tracking Auditor panel / the HAR — the SDK batches, drops invalid payloads and adds its own
+      <code>oai::diagnostic</code> telemetry.</p>
+  </section>
+
+</div>
+</main>
+
+<script>
+const PLAIN = window.TEST_USER.plain;
+
+// Data shapes per event, mirroring the SDK's own event→shape map. `contents`
+// events may carry items, `customer_action` may not, `plan_enrollment` wants a
+// plan_id. Amounts are integers in the currency's minor unit.
+const ITEM_A = { id: 'SKU-A12', name: 'Blue Widget', content_type: 'product', quantity: 1, amount: 4999, currency: 'EUR' };
+const ITEM_B = { id: 'SKU-B20', name: 'Red Gadget', content_type: 'product', quantity: 2, amount: 3749, currency: 'EUR' };
+
+const EVENTS = {
+  page_viewed:            { type: 'contents', contents: [{ id: 'PAGE-BENCH', name: 'Capture bench', content_type: 'page', quantity: 1 }] },
+  contents_viewed:        { type: 'contents', amount: 4999, currency: 'EUR', contents: [ITEM_A] },
+  items_added:            { type: 'contents', amount: 12497, currency: 'EUR', contents: [ITEM_A, ITEM_B] },
+  checkout_started:       { type: 'contents', amount: 12497, currency: 'EUR', contents: [ITEM_A, ITEM_B] },
+  order_created:          { type: 'contents', amount: 12497, currency: 'EUR', contents: [ITEM_A, ITEM_B] },
+  lead_created:           { type: 'customer_action', amount: 2500, currency: 'EUR' },
+  registration_completed: { type: 'customer_action' },
+  appointment_scheduled:  { type: 'customer_action' },
+  subscription_created:   { type: 'plan_enrollment', plan_id: 'pro-monthly', amount: 1900, currency: 'EUR' },
+  trial_started:          { type: 'plan_enrollment', plan_id: 'pro-trial-14d' },
+  custom:                 { type: 'custom', amount: 500, currency: 'EUR' },
+};
+const OPTIONS = { custom: { custom_event_name: 'newsletter_signup' } };
+
+function measure(name, data, opts) {
+  const args = ['measure', name, data || EVENTS[name]];
+  if (opts || OPTIONS[name]) args.push(opts || OPTIONS[name]);
+  oaiq.apply(null, args);
+  log(name, args.slice(2));
+}
+
+function log(name, payload) {
+  const el = document.getElementById('log');
+  const t = new Date().toTimeString().slice(0, 8);
+  el.insertAdjacentHTML('afterbegin',
+    `<div><span class="t">${t}</span>  <span class="n">${name}</span>  ${escapeHtml(JSON.stringify(payload))}</div>`);
+}
+const escapeHtml = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+const cookie = (n) => (document.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')) || [])[1] || '–';
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.href) { location.href = b.dataset.href; return; }
+  if (b.dataset.ev) { measure(b.dataset.ev); return; }
+});
+
+document.getElementById('b-eventid').onclick = () =>
+  measure('order_created', EVENTS.order_created, { event_id: 'order-' + Date.now() });
+document.getElementById('b-optout').onclick = () =>
+  measure('order_created', EVENTS.order_created, { opt_out: true });
+document.getElementById('b-minimal').onclick = () =>
+  measure('order_created', { type: 'contents' });
+
+document.getElementById('b-consent-off').onclick = () => { oaiq('consent', false); log('consent', [false]); paint(); };
+document.getElementById('b-consent-on').onclick = () => { oaiq('consent', true); log('consent', [true]); paint(); };
+
+// A denial persists in localStorage AND a cookie and is read before init, so it
+// outlives the ?consent=denied URL that set it. Clearing both plus the refs is
+// the only way back to a virgin session.
+function resetPixelState() {
+  try { localStorage.removeItem('oaiq_consent'); } catch (e) { /* private mode */ }
+  for (const c of ['__oaiq_consent', '__obref', '__oppref']) {
+    document.cookie = `${c}=; path=/; max-age=0`;
+  }
+  location.href = location.pathname;
+}
+document.getElementById('b-reset').onclick = resetPixelState;
+document.getElementById('b-reset2').onclick = resetPixelState;
+
+document.getElementById('b-burst').onclick = () => {
+  ['contents_viewed', 'items_added', 'checkout_started'].forEach((n) => measure(n));
+};
+document.getElementById('b-spread').onclick = () => {
+  ['contents_viewed', 'items_added', 'checkout_started'].forEach((n, i) => setTimeout(() => measure(n), i * 2000));
+};
+document.getElementById('b-all').onclick = () => {
+  Object.keys(EVENTS).forEach((n, i) => setTimeout(() => measure(n), i * 1500));
+};
+
+// --- automatic advanced matching -------------------------------------------
+const AAM = window.TEST_USER.aam;
+const fieldsOf = (u) => ({ 'f-email': u.email, 'f-phone': u.phone, 'f-first': u.first_name, 'f-last': u.last_name, 'f-zip': u.postal_code || '20095' });
+
+function fillForm(u) {
+  const fields = fieldsOf(u);
+  for (const [id, v] of Object.entries(fields)) {
+    const el = document.getElementById(id);
+    el.focus();
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
+  }
+  log('form filled', Object.values(fields));
+}
+document.getElementById('b-fill').onclick = () => fillForm(AAM);
+document.getElementById('b-aam-submit').onclick = () => { fillForm(AAM); setTimeout(() => measure('lead_created'), 400); };
+document.getElementById('b-aam-dupe').onclick = () => { fillForm(PLAIN); setTimeout(() => measure('lead_created'), 400); };
+document.getElementById('b-aam-js').onclick = () => {
+  window.userEmail = AAM.email;
+  window.userPhone = AAM.phone;
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: 'user_data', email: AAM.email, phone_number: AAM.phone });
+  log('js globals set', ['window.userEmail', 'window.userPhone', 'dataLayer']);
+};
+document.getElementById('b-clear').onclick = () => { document.getElementById('log').innerHTML = ''; };
+
+// --- status ----------------------------------------------------------------
+function paint() {
+  const q = new URLSearchParams(location.search);
+  document.getElementById('s-pixel').textContent = window.OAIQ_PIXEL_ID;
+  document.getElementById('s-sdk').textContent = oaiq.loaded ? 'loaded ' + (oaiq.version || '') : 'queued (not loaded)';
+  // The stored value is what the SDK actually reads at load; the URL only ever
+  // sets it. A stored "false" means nothing leaves the page.
+  let stored = null;
+  try { stored = localStorage.getItem('oaiq_consent'); } catch (e) { /* private mode */ }
+  const denied = stored === 'false' || cookie('__oaiq_consent') === 'false' || q.get('consent') === 'denied';
+  document.getElementById('s-consent').textContent =
+    denied ? 'DENIED — nothing is sent' : (stored === 'true' ? 'granted (stored)' : 'granted (default)');
+  document.getElementById('warn').classList.toggle('on', denied);
+  document.getElementById('s-user').textContent = q.get('user') === 'off' ? 'no' : 'yes (pre-hashed)';
+  document.getElementById('s-obref').textContent = cookie('__obref');
+  document.getElementById('s-oppref').textContent = cookie('__oppref');
+}
+paint();
+setInterval(paint, 1000);
+</script>
+</body>
+</html>
