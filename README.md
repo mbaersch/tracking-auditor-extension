@@ -113,7 +113,9 @@ row with the optional **Deep Capture** mode, and an independent
 **Show** filter row (service pills + fulltext) narrows the displayed log — the
 pills cover only the services you actually record, so the bar carries no toggle
 for a service you never capture — with **all / none** shortcuts to focus on a
-single service quickly.
+single service quickly. A pill is marked **live** once its service has fired
+during the running recording, so you can see what a site is actually using
+without unhiding it.
 
 **Deep Capture (optional).** Some first-party setups deliver tags through a
 **service worker** — Google Tag Gateway, a Cloudflare/edge worker, or Bing UET —
@@ -171,6 +173,7 @@ v1.1.0
 - OpenAI user data is reported by origin: what the site passed to `oaiq("init", { user })` versus what **Automatic Advanced Matching** collected from the page's forms, JS variables and HTML.
 - OpenAI's own `oai::diagnostic` event is surfaced as a card of its own — it reports the consent the SDK acted on and any events it rejected before sending, with the reason.
 - The OpenAI pixel has no consent mode: a single boolean, no purposes, no CMP signal, and it defaults to granted. The consent pill says what the SDK acted on and its tooltip states that "granted" also covers a site that never asked.
+- The **Show** filter pills now mark which services are actually **live**: a service that has fired at least once since you pressed Start gets a dot and a stronger border, and pulses once the moment its first hit arrives. The marker is independent of the filter — a service you have hidden can still show as live — spans page loads, and survives Clear; it resets on the next Start.
 
 v1.0.2
 - GA4: batched POSTs are decoded correctly. A GA4 request can carry several events, one urlencoded parameter set per body line — these were parsed as a single set, so the first event swallowed the other events' parameters and only one card appeared. Each event now gets its own card (marked `batch n/N`), with the shared query parameters on all of them and the body parameters strictly per event.
