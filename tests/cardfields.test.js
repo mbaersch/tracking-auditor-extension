@@ -25,6 +25,8 @@ test('accountId / accountTitle per provider', () => {
   assert.equal(accountId({ provider: 'outbrain', account: 'Ob1' }), 'Ob1');
   assert.equal(accountId({ provider: 'awin', merchantId: '11783' }), '11783');
   assert.equal(accountTitle({ provider: 'awin' }), 'Awin merchant (MID)');
+  assert.equal(accountId({ provider: 'openai', pixelId: 'Oa1' }), 'Oa1');
+  assert.equal(accountTitle({ provider: 'openai' }), 'Pixel ID (pid)');
 });
 
 test('eventName: plain and special cases', () => {
@@ -44,6 +46,10 @@ test('eventName: plain and special cases', () => {
   assert.equal(eventName({ provider: 'awin', shape: 'plt' }), 'product level tracking');
   assert.equal(eventName({ provider: 'awin', shape: 'landing' }), 'landing');
   assert.equal(eventName({ provider: 'awin', shape: 'sale' }), 'sale');
+  // openai: the SDK's own event types get plain labels, everything else its name
+  assert.equal(eventName({ provider: 'openai', eventType: 'oai::diagnostic' }), 'SDK diagnostic');
+  assert.equal(eventName({ provider: 'openai', eventType: 'openai::sdk_init' }), 'SDK initialised');
+  assert.equal(eventName({ provider: 'openai', eventType: 'custom', event: 'newsletter_signup' }), 'newsletter_signup');
 });
 
 test('docLocation: payload url vs query/body param', () => {
@@ -67,6 +73,6 @@ test('unknown provider falls back to GA4-style (tid / Measurement ID / en / dl)'
 
 test('every registered PARSER provider has a descriptor', () => {
   const providers = ['ga4', 'meta', 'uet', 'tiktok', 'pinterest', 'googleads', 'floodlight',
-    'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
+    'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
   for (const p of providers) assert.ok(CARD_FIELDS[p], `missing descriptor for ${p}`);
 });
