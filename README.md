@@ -4,8 +4,8 @@
 
 A lightweight Chrome **DevTools** extension that records GA4, **Meta**, **Bing**,
 **TikTok**, **Pinterest**, **Google Ads**, **Floodlight**, **LinkedIn**, **Reddit**,
-**Snapchat**, **HubSpot** and **Criteo** requests of the inspected tab — including
-transports that common debuggers miss:
+**Snapchat**, **OpenAI**, **HubSpot** and **Criteo** requests of the inspected tab —
+including transports that common debuggers miss:
 
 GA4:
 - Standard GA4 
@@ -58,6 +58,17 @@ Reddit Pixel:
 Snapchat Pixel:
 - All events 
 - full hashed identifier set — email, phone, name, geo and age 
+
+OpenAI ads pixel (`oaiq`):
+- All ten standard events plus custom events (named by `custom_event_name`)
+- Batched POSTs split into one card per event
+- Commerce payload: `contents` items and the amount converted out of the currency's
+  smallest unit
+- Tells apart user data the site passed to `init` from what **Automatic Advanced
+  Matching** scraped off the page (form / JS / HTML)
+- Consent state, `opt_out`, the `oppref` ad click id and site-supplied `event_id`
+  deduplication keys
+- The SDK's own diagnostic event, including the events it **dropped** and why
 
 HubSpot:
 - Pageview 
@@ -154,6 +165,12 @@ If you want to modify the extension or run an unreleased version, load it unpack
 5. Pin the extension if you want it in the toolbar
 
 ## Changelog
+
+v1.1.0
+- Added the **OpenAI ads pixel** (`oaiq`) as the 16th service, recorded by default: `bzr.openai.com/v1/sdk/events` POSTs are split into one card per batched event, with the commerce payload, consent state, `opt_out`, the `oppref` click id and site-supplied `event_id` dedup keys.
+- OpenAI user data is reported by origin: what the site passed to `oaiq("init", { user })` versus what **Automatic Advanced Matching** collected from the page's forms, JS variables and HTML.
+- OpenAI's own `oai::diagnostic` event is surfaced as a card of its own — it reports the consent the SDK acted on and any events it rejected before sending, with the reason.
+- The OpenAI pixel has no consent mode: a single boolean, no purposes, no CMP signal, and it defaults to granted. The consent pill says what the SDK acted on and its tooltip states that "granted" also covers a site that never asked.
 
 v1.0.2
 - GA4: batched POSTs are decoded correctly. A GA4 request can carry several events, one urlencoded parameter set per body line — these were parsed as a single set, so the first event swallowed the other events' parameters and only one card appeared. Each event now gets its own card (marked `batch n/N`), with the shared query parameters on all of them and the body parameters strictly per event.
