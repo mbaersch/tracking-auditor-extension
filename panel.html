@@ -31,6 +31,7 @@
       --card-taboola:   #e0f2f5;   /* deep-cyan tint — native-ads block, distinct from Bing's muted teal */
       --card-outbrain:  #fdf2f8;   /* rose tint — native-ads sibling to Taboola, distinct from Pinterest's red */
       --card-awin:      #f5f3ff;   /* violet tint — affiliate; distinct from Criteo's periwinkle */
+      --card-openai:    #eef0f3;   /* cool graphite — the one neutral tint, matching a black/white brand */
       --text: #1e293b;
       --text-muted: #64748b;
       --text-faint: #94a3b8;
@@ -65,6 +66,7 @@
       --card-taboola:   #0f2a2f;   /* deep-cyan */
       --card-outbrain:  #2e1522;   /* rose */
       --card-awin:      #241a33;   /* violet */
+      --card-openai:    #23262c;   /* cool graphite */
         --text: #e2e8f0;
         --text-muted: #94a3b8;
         --text-faint: #64748b;
@@ -166,6 +168,7 @@
     .ev.p-taboola { background: var(--card-taboola); }
     .ev.p-outbrain { background: var(--card-outbrain); }
     .ev.p-awin { background: var(--card-awin); }
+    .ev.p-openai { background: var(--card-openai); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     /* Color-code cards OFF (Advanced): every card falls back to the neutral
        surface so a busy mixed stream stops competing for attention; the provider
@@ -205,6 +208,8 @@
     .pill-taboola   { background: #0e7490; color: #fff; }
     .pill-outbrain  { background: #db2777; color: #fff; }
     .pill-awin      { background: #7c3aed; color: #fff; }
+    /* Black with white text — TikTok's black pill is set apart by its cyan text. */
+    .pill-openai    { background: #0d0d0d; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -263,6 +268,7 @@
         <label><input type="checkbox" data-rec="linkedin" checked> LinkedIn</label>
         <label><input type="checkbox" data-rec="reddit" checked> Reddit</label>
         <label><input type="checkbox" data-rec="snapchat" checked> Snapchat</label>
+        <label><input type="checkbox" data-rec="openai" checked> OpenAI</label>
         <label><input type="checkbox" data-rec="hubspot" checked> HubSpot</label>
         <label><input type="checkbox" data-rec="criteo"> Criteo</label>
         <label><input type="checkbox" data-rec="taboola"> Taboola</label>

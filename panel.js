@@ -16,6 +16,7 @@ import { parseCriteoRequest } from './lib/criteo.js';
 import { parseTaboolaRequest } from './lib/taboola.js';
 import { parseOutbrainRequest } from './lib/outbrain.js';
 import { parseAwinRequest } from './lib/awin.js';
+import { parseOpenAiRequest } from './lib/openai.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { algoLabel, algoNote } from './lib/params.js';
@@ -54,6 +55,9 @@ const PARSERS = [
   { id: 'taboola', parse: parseTaboolaRequest },
   { id: 'outbrain', parse: parseOutbrainRequest },
   { id: 'awin', parse: parseAwinRequest },
+  // Returns one record per event: the oaiq SDK batches several measure() calls
+  // into a single POST.
+  { id: 'openai', parse: parseOpenAiRequest },
 ];
 
 const state = {
@@ -64,8 +68,8 @@ const state = {
   // the stream with retargeting/native-ads pills — the user opts in per service.
   // On update these keys are absent from stored settings, so this false default
   // wins (loadSettings only Object.assigns the keys a user actually saved).
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: false, taboola: false, outbrain: false, awin: false },
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, criteo: true, taboola: true, outbrain: true, awin: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: false, taboola: false, outbrain: false, awin: false },
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: true, taboola: true, outbrain: true, awin: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   swNoticeMuted: false,                                    // "mute for session": suppress the Tag-Gateway SW notice until the panel reloads
   deepCapture: false,                                       // Spike: also ingest webRequest events (catches worker/edge-dispatched hits the DevTools feed misses)
@@ -76,8 +80,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain', awin: 'Awin' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', openai: 'OpenAI', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain', awin: 'Awin' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -188,6 +192,19 @@ function providerPills(r) {
     const pills = ['<span class="pill pill-awin" title="Awin affiliate — www.awin1.com (MasterTag www.dwin1.com/&lt;MID&gt;.js)">Awin</span>'];
     pills.push(`<span class="pill pill-event" title="${r.shape === 'plt' ? 'basket.php — product-level tracking' : (r.shape === 'landing' ? 'alt.php — affiliate landing / click tag' : 'sread.img/php/js — the sale / conversion')}">${escapeHtml(SHAPE[r.shape] || r.shape)}</span>`);
     if (r.testMode) pills.push('<span class="pill pill-consent-info" title="testmode=1 / t=1 — a test transaction (no real commission books)">test</span>');
+    return pills.join('');
+  }
+  if (r.provider === 'openai') {
+    const pills = ['<span class="pill pill-openai" title="OpenAI ads pixel (oaiq) — bzr.openai.com/v1/sdk/events">OpenAI</span>'];
+    if (r.eventType === 'oai::diagnostic') {
+      pills.push('<span class="pill pill-consent-info" title="oai::diagnostic — the SDK&#39;s own telemetry: consent state, first visit, and any events it dropped. Not a marketing event.">SDK diagnostic</span>');
+    } else if (r.eventType === 'openai::sdk_init') {
+      pills.push('<span class="pill pill-consent-info" title="openai::sdk_init — the SDK announcing itself on load. Not a marketing event.">SDK init</span>');
+    } else if (r.flags && r.flags.custom) {
+      pills.push('<span class="pill pill-ee" title="measure(&quot;custom&quot;, …) — the name comes from custom_event_name">custom event</span>');
+    } else if (!(r.flags && r.flags.standardEvent)) {
+      pills.push('<span class="pill pill-ee" title="Not one of the ten documented OpenAI standard event names">unknown event</span>');
+    }
     return pills.join('');
   }
   if (r.provider === 'hubspot') {
@@ -370,10 +387,25 @@ function flagPills(r) {
     else if (f.identify) out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
     return out.join('');
   }
+  if (r.provider === 'openai') {
+    const f = r.flags || {};
+    const d = r.diagnostic;
+    if (d && d.droppedCount) {
+      const why = d.droppedReasons ? Object.entries(d.droppedReasons).map(([k, v]) => `${k}: ${v}`).join(' · ') : '';
+      out.push(`<span class="pill pill-consent-denied" title="The SDK rejected ${d.droppedCount} event(s) before sending${why ? ' — ' + escapeHtml(why) : ''}. Reported by the pixel itself, not inferred.">${d.droppedCount} dropped</span>`);
+    }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'data.amount / data.currency — amount arrives in the currency&#39;s smallest unit and is shown converted'));
+    if (f.itemCount) out.push(`<span class="pill pill-ep" title="${f.itemCount} item(s) in data.contents">items ×${f.itemCount}</span>`);
+    if (r.planId) out.push(`<span class="pill pill-ep" title="data.plan_id — the subscription / trial plan">plan: ${escapeHtml(clip(r.planId))}</span>`);
+    if (f.optOut) out.push('<span class="pill pill-consent-denied" title="opt_out: true — sent, but excluded from personalization">opt out</span>');
+    if (f.dedupeId) out.push(`<span class="pill pill-event" title="event_id supplied by the site (not an SDK uuid) — the dedup key shared with the Conversions API: ${escapeHtml(r.eventId)}">dedup id</span>`);
+    if (r.clickId) out.push(`<span class="pill pill-ud" title="oppref — the ad click id captured from the landing URL and stored in the __oppref cookie: ${escapeHtml(r.clickId)}">oppref</span>`);
+  }
   if (r._batch) {
     const tip = `Batched POST: this request carried ${r._batch.total} events, one per body line. This card is event ${r._batch.index} of ${r._batch.total} — the query parameters are shared by all of them.`;
     out.push(`<span class="pill pill-ud" title="${escapeHtml(tip)}">batch ${r._batch.index}/${r._batch.total}</span>`);
   }
+  if (r.provider === 'openai') return out.join('');
   const f = r.flags;
   if (!f) return '';
   if (f.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
@@ -402,6 +434,24 @@ function consentPills(r) {
     const label = s === 'unset' ? 'consent: unset' : `ad: ${s}`;
     const tip = 'Microsoft Consent Mode (asc): G=granted, D=denied, absent=unset';
     out.push(`<span class="pill ${consentStateCls(s)}" title="${escapeHtml(tip)}">${escapeHtml(label)}</span>`);
+    return out.join('');
+  }
+  if (r.provider === 'openai') {
+    // Always shown: with this pixel the consent state is readable off every hit,
+    // so a missing pill would be the odd case, not the normal one.
+    const c = r.consent || {};
+    const s = c.granted === true ? 'granted' : c.granted === false ? 'denied' : 'unset';
+    // The pixel has no consent mode — one boolean, no purposes, no CMP hook —
+    // and it defaults to granted. "granted" therefore means "the SDK was not
+    // told to stop", which includes a site that never asked.
+    const tip = c.source === 'diagnostic'
+      ? 'Consent state reported by the SDK itself (oai::diagnostic → consent). The pixel defaults to granted, so this also reads "true" when the site never called oaiq("consent", …)'
+      : c.granted === true
+        ? 'Full payload (obref / user present) — the SDK strips those when consent is denied. It defaults to granted, so this does not prove the site asked'
+        : c.granted === false
+          ? 'Stripped, credential-less POST carrying a real event — the shape the SDK uses when consent was denied'
+          : 'Credential-less POST carrying only a session marker — the SDK sends that shape either way, so this hit does not say';
+    out.push(`<span class="pill ${consentStateCls(s)}" title="${escapeHtml(tip)}">consent: ${s === 'unset' ? 'unknown' : s}</span>`);
     return out.join('');
   }
   const consent = r.consent;
@@ -468,6 +518,15 @@ function summaryPills(r) {
     if (r.flags && r.flags.hashedEmail) {
       pills.push('<span class="pill pill-em" title="unified_id — SHA-256 of the email (Taboola AudienceMatch identity), sent as a query param">hashed email</span>');
     }
+  } else if (r.provider === 'openai') {
+    // The two paths are worth telling apart: user.in is what the site chose to
+    // send, user.fm/js/ht is what the SDK collected off the page by itself.
+    if (r.flags && r.flags.autoMatching) {
+      pills.push('<span class="pill pill-em" title="Automatic advanced matching: the SDK scraped identifiers off the page (form / JS / HTML), hashed them in-browser and sent them as user.fm / user.js / user.ht">auto matching</span>');
+    }
+    if (r.userData && Object.keys(r.userData).some((k) => k.startsWith('in.'))) {
+      pills.push('<span class="pill pill-ud" title="user data passed to oaiq(&quot;init&quot;, { user }) by the site itself (user.in)">init user data</span>');
+    }
   } else if (r.em) {
     pills.push('<span class="pill pill-em" title="Request carries an em parameter (hashed enhanced-conversion identifiers)">em</span>');
   }
@@ -508,6 +567,7 @@ const PII_SECTION_TITLE = {
   hubspot: 'PII / user data (identify — cleartext)',
   criteo: 'PII / user data (setEmail — cleartext)',
   taboola: 'PII / identity (unified_id)',
+  openai: 'PII / user data (init vs. automatic matching)',
 };
 
 // The one place PII surfaces in the details: every user-data field a request
@@ -1020,6 +1080,75 @@ function detailHtml(r) {
     }
     if (r._transports && r._transports.length > 1) {
       extras += section(`transports (${r._transports.length})`, kvTable([['mirrors', r._transports.join(' · ')]]));
+    }
+  } else if (r.provider === 'openai') {
+    const KIND = { 'oai::diagnostic': 'SDK diagnostic (not a marketing event)', 'openai::sdk_init': 'SDK lifecycle (not a marketing event)' };
+    meta = [
+      ['event', r.event],
+      ['event type', r.eventType !== r.event ? r.eventType : null],
+      ['kind', KIND[r.eventType] || (r.flags && r.flags.custom ? 'custom event' : (r.flags && r.flags.standardEvent ? 'standard event' : 'unknown event name'))],
+      ['data shape (data.type)', r.dataType],
+      ['pixel id (pid)', r.pixelId],
+      ['event id', r.eventId],
+      ['plan id', r.planId],
+      ['opt out', r.optOut ? 'yes — excluded from personalization' : null],
+      ['browser ref (obref)', r.browserRef],
+      ['click id (oppref)', r.clickId],
+      ['sdk (st / sv)', r.sdkType ? `${r.sdkType} ${r.sdkVersion || ''}`.trim() : null],
+      ['transport', r.transport], ['method', r.method],
+      ['page url (source_url)', r.pageUrl], ['referrer (referrer_url)', r.referrer],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.revenue) {
+      extras += section('value', kvTable([
+        ['amount', `${r.revenue.value}${r.revenue.currency ? ' ' + r.revenue.currency : ''}`],
+        ['raw (smallest currency unit)', String(r.revenue.minor)],
+      ]));
+    }
+    if (Array.isArray(r.contents) && r.contents.length) {
+      const rows = r.contents.map((c, i) => {
+        const bits = [
+          c.id ? `#${c.id}` : null,
+          c.contentType || null,
+          c.quantity ? `×${c.quantity}` : null,
+          c.amountText ? `${c.amountText}${c.currency ? ' ' + c.currency : ''}` : null,
+        ].filter(Boolean).join('  ·  ');
+        return [`${i + 1}. ${c.name || c.id || '?'}`, bits];
+      });
+      extras += section(`contents (${r.contents.length})`, kvTable(rows));
+    }
+
+    const c = r.consent || {};
+    extras += section('Consent', kvTable([
+      ['state', c.granted === true ? 'granted' : c.granted === false ? 'denied' : 'not stated by this hit'],
+      ['read from', c.source === 'diagnostic' ? 'the SDK diagnostic event' : c.source === 'transport' ? 'the request shape' : '—'],
+      ['credentials', c.credentialless ? 'omitted (stripped payload)' : 'sent'],
+    ]));
+
+    extras += piiSection(r);
+    if (r.envelopeUserFields) {
+      extras += section('PII / user data',
+        `<div class="det-note">This request carried ${r.envelopeUserFields} user-data field(s), but they belong to the ` +
+        `POST envelope, not to this SDK event — they are listed on the event card(s) of the same batch.</div>`);
+    }
+
+    const d = r.diagnostic;
+    if (d) {
+      const rows = [];
+      if (d.consent != null) rows.push(['consent', String(d.consent)]);
+      if (d.autoMatching) rows.push(['automatic advanced matching', d.autoMatching]);
+      if (d.firstVisit) rows.push(['first visit in session', 'yes']);
+      if (d.firstConsentGrant) rows.push(['first consent grant in session', 'yes']);
+      rows.push(['dropped events', String(d.droppedCount)]);
+      for (const [k, v] of Object.entries(d.droppedReasons || {})) rows.push([`reason: ${k}`, String(v)]);
+      for (const [k, v] of Object.entries(d.droppedNames || {})) rows.push([`dropped event: ${k}`, String(v)]);
+      for (const [k, v] of Object.entries(d.droppedPhases || {})) rows.push([`phase: ${k}`, String(v)]);
+      extras += section('SDK diagnostic', kvTable(rows));
+      if (d.droppedDetails) {
+        extras += section('dropped event details', kvTable(d.droppedDetails.map((x, i) =>
+          [`${i + 1}. ${x.reason || '?'}`, [x.field, x.code, x.count != null ? `×${x.count}` : null].filter(Boolean).join('  ·  ')])));
+      }
     }
   } else {
     meta = [
