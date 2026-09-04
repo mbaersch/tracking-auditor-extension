@@ -63,11 +63,34 @@ its absence is itself a signal.
 The account's Automatic Advanced Matching setting arrives with that config; the
 SDK then reports the outcome back in its diagnostic (§7).
 
-**Installation snippet shape** [SDK]: the global `oaiq` is either an array, or an
-object with `.q` or `.queue` — the SDK drains whichever it finds, then replaces
-the global with the real implementation carrying `.loaded`, `.version`,
-`.__oaiqInitialized`, and direct methods `.init` / `.measure` / `.measureSingle`
-/ `.consent`.
+### Snippet vs. SDK — who does what
+
+Easy to get backwards, so explicitly [SDK][LIVE]:
+
+**The snippet is a buffer, not a manager.** It creates `oaiq` as a function that
+pushes its arguments into `oaiq.q`, and injects the SDK `<script>`
+**unconditionally and immediately**. There is no consent check, no queue policy
+and no logic of any kind in it. Its only job is to catch calls made in the few
+hundred milliseconds before the async script arrives.
+
+**The SDK always loads** — verified [LIVE]: in the consent-denied run,
+`oaiq.min.js` was fetched exactly as in the granted run. Consent does not gate
+the download.
+
+When it arrives it drains whatever it finds (`oaiq` as a bare array, or `.q`, or
+`.queue`), then **replaces the global** with the real implementation carrying
+`.loaded`, `.version`, `.__oaiqInitialized` and direct methods `.init` /
+`.measure` / `.measureSingle` / `.consent`. From that moment the stub is gone and
+every subsequent call goes straight into the SDK. All logic — validation,
+queueing, consent, batching, flushing — lives there.
+
+**What consent *does* gate at load time** [SDK]:
+
+- the per-pixel config fetch — `Pe()` opens with `if (!De) return`, where `De` is
+  the consent flag. This is the source-level confirmation of the observed
+  missing config request.
+- the advanced-matching DOM listeners — `ce(false, …)` removes the `change` /
+  `keydown` / `click` / `submit` handlers, so the SDK stops watching the page.
 
 **CSP required** [DOC]: `script-src https://bzrcdn.openai.com`,
 `connect-src https://bzr.openai.com https://bzrcdn.openai.com`,
@@ -231,6 +254,40 @@ re-read and the identity wiped if it says no.
 No `Cookie` header appeared on either path in my captures — there simply were no
 openai.com cookies to send. `credentials: "include"` means "send them where the
 browser allows", which in a modern third-party context is mostly nowhere.
+
+### When the stripped mode is active, and what it is *for* [SDK]
+
+**Queued, then thrown away.** `measure()` does *not* check consent before
+queueing. `lo()` validates, then `Ye()` pushes the event onto `pendingEvents`
+unconditionally — the SDK's own debug log even says `event queued`. The consent
+check happens one step later, in the scheduler and again in the flush:
+
+```js
+if (!w() && !kn(t)) { t.pendingEvents.splice(0, t.pendingEvents.length); … }
+// kn(e) = queue non-empty AND every entry is a session-marker diagnostic
+```
+
+So under a denial everything that is not a session marker is **discarded from the
+queue and never sent**. With `debug: true` you can watch it: the event is logged
+as queued, and no request follows.
+
+**Exactly one thing survives a denial**: the session-marker diagnostic. It
+carries the pixel id (in the query), `consent: false`, and
+`is_first_visit_in_session` — and nothing else. No `obref`, no `oppref`, no
+`user`, no cookies, no referrer.
+
+**That is the purpose of the stripped transport.** It answers "how many browser
+sessions encountered this pixel, and how did consent go" — an aggregate counter,
+not an identity. The mode exists so that this one number can leave the page
+without carrying anything identifying, which is also why the *same* transport is
+used for a marker-only batch under **granted** consent (§6): a counter needs no
+identity either way.
+
+The care taken here is visible in `dt()`: if a marker was queued while consent
+was granted and consent is revoked before it flushes, the SDK **rewrites** the
+queued record — sets `consent: false`, deletes
+`is_first_consent_grant_in_session`, flips its state to `"v"` (revoked) — rather
+than sending the now-wrong version or silently dropping it.
 
 ### Identity is first-party, and it is actively destroyed [SDK][LIVE]
 
