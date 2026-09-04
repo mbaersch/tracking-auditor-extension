@@ -27,6 +27,11 @@
   input { font: inherit; width: 100%; padding: 5px 8px; border: 1px solid var(--bd); border-radius: 5px; }
   #warn { display: none; background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
   #warn.on { display: block; }
+  #ident { border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  #ident td { padding: 3px 10px 3px 0; vertical-align: top; }
+  #ident td:first-child { color: var(--mut); white-space: nowrap; }
+  #ident .on { color: #0a7c5a; font-weight: 600; word-break: break-all; }
+  #ident .off { color: #b91c1c; }
   #log { background: #14161a; color: #d7dbe0; border-radius: 8px; padding: 12px; height: 260px; overflow: auto; white-space: pre-wrap; }
   #log .t { color: #6b7280; }
   #log .n { color: #7dd3a8; }
@@ -179,6 +184,29 @@
     <button id="b-all" class="primary">fire every standard event</button>
     <p class="note">The SDK flushes 1 s after the last event, at the latest 4 s after the first — a burst
       lands as one POST with <code>ec=3</code>, the spread version as three.</p>
+  </section>
+
+  <section class="wide">
+    <h2>Identity &amp; transport</h2>
+    <table id="ident" class="mono"></table>
+    <p class="note">
+      The SDK keeps its identity in <em>first-party</em> cookies on this site's registrable domain
+      (it probes for it with a short-lived <code>__oaiq_domain_probe</code> cookie), not in a cookie
+      on openai.com. That identity travels in the request <em>body</em> as <code>obref</code> /
+      <code>oppref</code>.
+    </p>
+    <p class="note">
+      Revoking consent does not merely stop sending: the SDK deletes <code>__obref</code> and
+      <code>__oppref</code> — across every parent-domain variant — and drops them from memory.
+      Press <b>consent → false</b> above and watch the rows below flip to “—”.
+    </p>
+    <p class="note">
+      Two transport modes on the same endpoint, chosen per flush. A normal batch goes out with
+      <code>credentials: "include"</code> and a referrer. A stripped batch (consent denied, or a
+      batch of nothing but session markers) goes out with <code>credentials: "omit"</code> and
+      <code>referrerPolicy: "no-referrer"</code> — and the SDK deliberately skips
+      <code>sendBeacon</code> for it, because a beacon cannot suppress cookies.
+    </p>
   </section>
 
   <section class="wide">
@@ -338,6 +366,24 @@ function paint() {
   document.getElementById('s-user').textContent = q.get('user') === 'off' ? 'no' : 'yes (pre-hashed)';
   document.getElementById('s-obref').textContent = cookie('__obref');
   document.getElementById('s-oppref').textContent = cookie('__oppref');
+  paintIdentity(stored);
+}
+
+// The identity the SDK holds right now. Rendered live so a consent revocation is
+// visible as the cookies disappearing, which is what actually happens — the SDK
+// deletes them rather than just ceasing to send.
+function paintIdentity(storedConsent) {
+  const rows = [
+    ['__obref (cookie)', cookie('__obref'), 'browser ref — a v4 UUID, sent in the body as obref'],
+    ['__oppref (cookie)', cookie('__oppref'), 'ad click id, captured from the ?oppref= landing parameter'],
+    ['__oaiq_consent (cookie)', cookie('__oaiq_consent'), 'persisted consent decision'],
+    ['oaiq_consent (localStorage)', storedConsent, 'same decision again — read first, and before init'],
+  ];
+  document.getElementById('ident').innerHTML = rows.map(([k, v, hint]) => {
+    const set = v != null && v !== '' && v !== '–';
+    return `<tr><td>${k}</td><td class="${set ? 'on' : 'off'}">${set ? escapeHtml(v) : '—'}</td>` +
+           `<td style="color:var(--mut)">${hint}</td></tr>`;
+  }).join('');
 }
 paint();
 setInterval(paint, 1000);

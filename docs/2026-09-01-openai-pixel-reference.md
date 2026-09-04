@@ -203,6 +203,76 @@ Three things that trip up a parser:
    on the ~16 zero-decimal ISO-4217 currencies (JPY, KRW, CLP, ISK, VND …).
 3. **Batching is the normal case**, so one request ≠ one event.
 
+### Two transport modes on one endpoint [SDK][LIVE]
+
+Investigated after the question came up whether "credential-less" implies a
+cookieless operating mode. **It does not — but what it does mean is more
+deliberate than a stray fetch option.**
+
+One flag, `omitCredentials` (the same `!w() || events.every(Qe)` from §6),
+switches three things at once:
+
+| | normal batch | stripped batch |
+|---|---|---|
+| Body | `obref`, `oppref`, `user`, `events` | `events` only |
+| `credentials` | `"include"` | `"omit"` |
+| `referrerPolicy` | default (referrer sent) | `"no-referrer"` |
+| `sendBeacon` allowed | yes | **no — deliberately** |
+
+The last row is the tell. In `Cs`: `let d = r && !a.omitCredentials` — a stripped
+batch is never sent via `sendBeacon`, because a beacon **cannot suppress
+cookies**. It is forced down the `fetch` path instead. Nobody writes that by
+accident; the suppression is intended.
+
+Also in `Cs`, on every flush: `V() === false && X()` — the persisted consent is
+re-read and the identity wiped if it says no.
+
+**Confirmed [LIVE]:** the normal path sends `Referer: http://localhost:8787/`.
+No `Cookie` header appeared on either path in my captures — there simply were no
+openai.com cookies to send. `credentials: "include"` means "send them where the
+browser allows", which in a modern third-party context is mostly nowhere.
+
+### Identity is first-party, and it is actively destroyed [SDK][LIVE]
+
+The identity does **not** live in a cookie on openai.com. `__obref` / `__oppref`
+are first-party cookies on the **publisher's** registrable domain, and they reach
+OpenAI **in the request body**, not as cookies.
+
+How the SDK finds that domain [SDK]: `Bo()` walks the hostname from the right,
+setting a throwaway `__oaiq_domain_probe=1` cookie (Max-Age 60) at each level
+until one sticks, then deletes it. **That probe cookie is an observable artifact
+on any page running the pixel** — worth recognising in a debugger.
+
+On denial, `X()` does more than stop sending:
+
+```js
+g.consent = false; Ne(false);
+g.browserRef = undefined; Mn();   // qn(__obref) — delete, incl. every parent-domain variant
+g.clickId = undefined;   Xt();    // delete __oppref
+```
+
+and `ft()` (browser-ref creation) is guarded by `if (!w()) return`, so nothing is
+re-created while denied.
+
+Measured over one session [LIVE]:
+
+| Step | Identity cookies |
+|---|---|
+| Fresh load, consent at its default | `__obref=89d161e0-…` |
+| After an `order_created` | unchanged |
+| After `oaiq("consent", false)` | **`__obref` gone**, only `__oaiq_consent=false` |
+| Event while denied | no request at all |
+| After reload | still only `__oaiq_consent` |
+
+Note the asymmetry: **denied *before* init** sends one diagnostic (§6), whereas
+**revoking after a grant** sent nothing at all in this run — `X()` prunes the
+pending queue first.
+
+**So, plainly:** there is no cookieless measurement mode. There is a per-request
+identity-suppressing transport, used for traffic that carries no identity anyway,
+plus active deletion of the identity on refusal. When the pixel measures, it
+measures with a first-party cookie on your domain.
+
 ### Cookies and storage [SDK][LIVE]
 
 | Name | Where | Contents | Lifetime |
@@ -493,6 +563,11 @@ Anecdotes worth keeping (they carry the piece):
 ## 14. Open questions / not investigated
 
 - Why `fn`/`ln` were not scraped from a plainly labelled form
+- Whether OpenAI ever sets a cookie on `bzr.openai.com` itself — `credentials:
+  "include"` implies they might, but none existed in my captures and the
+  responses are opaque (`no-cors`), so I could not see a `Set-Cookie`
+- Whether revoking consent ever produces a request (it did not here, but the
+  pruning in `X()` is conditional and a different queue state might survive)
 - Whether the per-pixel config JSON carries anything else worth reading (I only
   ever looked at the AAM flag as reported by the diagnostic — **I never read the
   config response body itself**)
