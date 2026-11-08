@@ -168,6 +168,9 @@ If you want to modify the extension or run an unreleased version, load it unpack
 4. Click "Load unpacked" and select the project folder
 5. Pin the extension if you want it in the toolbar
 
+### Keeping the sibling projects in step
+The same service knowledge lives in three sibling projects ([tracking-auditor](https://github.com/mbaersch/tracking-auditor), [stage-in-a-box](https://github.com/mbaersch/stage-in-a-box) and [ec-data-validator](https://github.com/mbaersch/ec-data-validator)). How they are kept in step — which project is the source for what, intentional gaps, and a script that runs reference requests for every format variant through all of them — is described in the tracking-auditor repo under [abgleich/README.md](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md) (German). After changing an endpoint, a parser or a decoded format, run it there. The parsers in `lib/` are copied unchanged into tracking-auditor's `pii-lib/`; the script reports any difference.
+
 ## Changelog
 
 Unreleased
