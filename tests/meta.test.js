@@ -151,6 +151,14 @@ test('extractMetaUserData / summarize work standalone', () => {
   assert.equal(parseMetaConsent((k) => null), null);
 });
 
+test('nested aud[em][0][v] counts as a hash slot, the [s] source flag is skipped', () => {
+  // Shape seen on atomkraftwerke24.de next to ud[em]; v carries the same hash.
+  const h = 'a'.repeat(64);
+  const ud = extractMetaUserData({ 'aud[em][0][v]': h, 'aud[em][0][s]': '0', 'aud[country][0][v]': h }, null);
+  assert.deepEqual(Object.keys(ud).sort(), ['country', 'em']);
+  assert.equal(ud.em.hashed, true);
+});
+
 // Shape of a real multipart Purchase (atomkraftwerke24.de, values replaced): large
 // events go as FormData POST to /tr/ with an EMPTY query — id and ev live only in
 // the body, so a parser that only splits urlencoded text loses the whole hit.

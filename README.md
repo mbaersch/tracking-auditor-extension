@@ -176,6 +176,7 @@ Unreleased
 - LinkedIn: `/wa/` beacons with `fmt=b` carry plain base64 JSON; only the gzipped `fmt=g` form was decoded.
 - GA4 now reads the value (`epn.value` / `ep.value`) and `ep.transaction_id`, Meta `cd[value]`, `cd[currency]`, `cd[order_id]` and `cd[content_ids]` — both show the value pill like the other services.
 - Google Ads through a **Google tag gateway**: the short form `<path>/as/p/c/<id>/` on the site's own domain is a conversion and folds into one card with its mirrors (verified against a real gateway).
+- Meta: advanced matching in the nested form `aud[em][0][v]` (next to `aud[em][0][s]`) is read as a hash slot; only the flat `aud[em]` was known.
 
 v1.1.0
 - Added the **OpenAI ads pixel** (`oaiq`) as the 16th service, recorded by default: `bzr.openai.com/v1/sdk/events` POSTs are split into one card per batched event, with the commerce payload, consent state, `opt_out`, the `oppref` click id and site-supplied `event_id` dedup keys.
