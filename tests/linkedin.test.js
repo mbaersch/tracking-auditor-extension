@@ -153,3 +153,17 @@ test('/wa/ decode failures return null, never throw', async () => {
   assert.equal(await parseLinkedInWaRequest(WA_URL, null), null);
   assert.equal(await parseLinkedInWaRequest('https://ct.pinterest.com/wa/', { text: WA_CLICK }), null);
 });
+
+// fmt=b (beacon) variant, seen 2026-11 on atomkraftwerke24.de next to fmt=g: the same
+// JSON, base64-encoded WITHOUT gzip. Values here are synthetic.
+test('/wa/ fmt=b: plain base64(JSON) without gzip is decoded too', async () => {
+  const json = { pids: [12345678], scriptVersion: 1, time: 1794101134178, domain: 'shop.example',
+    url: 'https://shop.example/', signalType: 'PAGE_VISIT', websiteSignalRequestId: 'req-1',
+    hem: 'a'.repeat(64) };
+  const body = Buffer.from(JSON.stringify(json), 'utf-8').toString('base64');
+  const r = await parseLinkedInWaRequest('https://px.ads.linkedin.com/wa/?medium=beacon&fmt=b', { text: body });
+  assert.ok(r, 'plain base64 body should decode');
+  assert.equal(r.signalType, 'PAGE_VISIT');
+  assert.equal(r.pid, '12345678');
+  assert.equal(r.identifiers.email, 1);
+});
