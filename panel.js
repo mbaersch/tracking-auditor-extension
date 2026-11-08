@@ -173,7 +173,7 @@ function providerPills(r) {
     return pills.join('');
   }
   if (r.provider === 'reddit') {
-    return '<span class="pill pill-reddit" title="Reddit Pixel — alb.reddit.com/rp.gif">Reddit</span>';
+    return '<span class="pill pill-reddit" title="Reddit Pixel — alb.reddit.com/rp(.gif)">Reddit</span>';
   }
   if (r.provider === 'snapchat') {
     return '<span class="pill pill-snapchat" title="Snapchat Pixel — tr.snapchat.com/p">Snapchat</span>';

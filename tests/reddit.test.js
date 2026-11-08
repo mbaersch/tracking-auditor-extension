@@ -86,3 +86,22 @@ test('detection: host, path, required id', () => {
   assert.equal(parseRedditRequest('https://alb.reddit.com/other?id=a2_x', null), null);         // wrong path
   assert.equal(parseRedditRequest('https://alb.reddit.com/rp.gif?event=PageVisit', null), null); // no id
 });
+
+// Newer transport, captured 2026-11 on atomkraftwerke24.de (shape kept, values
+// replaced): POST /rp, event+id in the query, everything else in a form body.
+test('POST /rp with form body is detected and read like the GET beacon', () => {
+  const url = 'https://alb.reddit.com/rp?event=Purchase&id=a2_testpixel001';
+  const body = 'ts=1794101132000&m.valueDecimal=49%2C90&m.currency=EUR&m.itemCount=1'
+    + '&m.conversionId=conv-1&m.products=%5B%5D&uuid=u-1&integration=gtm&opt_out=0'
+    + '&em=' + 'a'.repeat(64) + '&esurl=https%3A%2F%2Fshop.example%2Fdanke&v=rdt_test';
+  const r = parseRedditRequest(url, { text: body });
+  assert.ok(r, 'POST /rp should be recognised');
+  assert.equal(r.method, 'POST');
+  assert.equal(r.event, 'Purchase');
+  assert.equal(r.pixelId, 'a2_testpixel001');
+  assert.equal(r.pageUrl, 'https://shop.example/danke');
+  assert.equal(r.identifiers.email, 1);
+  assert.ok(r.revenue, 'value from m.valueDecimal');
+  assert.equal(r.revenue.currency, 'EUR');
+  assert.equal(parseRedditRequest('https://alb.reddit.com/rpx?id=a2_x', null), null);
+});
