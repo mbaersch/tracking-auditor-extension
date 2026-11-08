@@ -20,6 +20,7 @@ Google Ads:
 - enhanced-conversions UPD
 -  Shows dynamic-remarketing product data / line items, consent 
 - Multiple Requests are folded into a single card 
+- Google tag gateway on the site's own domain (`<path>/as/p/c/`, `<path>/as/d/ccm/conversion/`, `<path>/d/ccm/form-data/`)
 
 Floodlight (Google Marketing Platform — CM360 / DV360):
 - counter / activity
@@ -31,8 +32,8 @@ Bing / Microsoft UET:
 - Reads `asc` consent signal ("granted/denied" or "unset" to mark a missing asc signal)
 
 Meta (Facebook) Pixel:
-- Standard pixel (GET or form POST)
-- All events 
+- Standard pixel (GET, form POST or multipart POST for large events)
+- All events, with value / currency / order id 
 
 LinkedIn Insight Tag:
 - Standard beacon folded into a single card, 
@@ -51,6 +52,7 @@ Pinterest Tag:
 - Enhanced match 
 
 Reddit Pixel: 
+- GET beacon (`/rp.gif`) and POST (`/rp`)
 - All events 
 - Conversion data 
 - Both manual and auto-collected hashed identifiers
@@ -167,6 +169,13 @@ If you want to modify the extension or run an unreleased version, load it unpack
 5. Pin the extension if you want it in the toolbar
 
 ## Changelog
+
+Unreleased
+- Meta: large events (e.g. a Purchase with user data) sent as multipart POST, with id and event only in the body, were not recognised at all — multipart bodies are now read.
+- Reddit: the current pixel posts to `alb.reddit.com/rp` (event and id in the query, the rest as form body); only the `/rp.gif` GET beacon was recognised.
+- LinkedIn: `/wa/` beacons with `fmt=b` carry plain base64 JSON; only the gzipped `fmt=g` form was decoded.
+- GA4 now reads the value (`epn.value` / `ep.value`) and `ep.transaction_id`, Meta `cd[value]`, `cd[currency]`, `cd[order_id]` and `cd[content_ids]` — both show the value pill like the other services.
+- Google Ads through a **Google tag gateway**: the short form `<path>/as/p/c/<id>/` on the site's own domain is a conversion and folds into one card with its mirrors (verified against a real gateway).
 
 v1.1.0
 - Added the **OpenAI ads pixel** (`oaiq`) as the 16th service, recorded by default: `bzr.openai.com/v1/sdk/events` POSTs are split into one card per batched event, with the commerce payload, consent state, `opt_out`, the `oppref` click id and site-supplied `event_id` dedup keys.
