@@ -919,7 +919,7 @@ function detailHtml(r) {
       ['event', r.event], ['pixel id (pid)', r.pixelId],
       ['transport', r.transport], ['method', r.method],
       ['integration', r.integration], ['version (v)', r.version],
-      ['client id (u_c1)', r.clientId], ['session id (u_scsid)', r.sessionId], ['click id (u_sclid)', r.clickId],
+      ['client id (u_c1)', r.clientId], ['session id (u_scsid)', r.sessionId], ['pixel uuid (u_sclid, not the ad click id)', r.clickId],
       ['page url', r.pageUrl], ['referrer', r.referrer],
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
