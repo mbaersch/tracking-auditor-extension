@@ -23,7 +23,6 @@ import { algoLabel, algoNote } from './lib/params.js';
 import { eventName, accountId, accountTitle, docLocation } from './lib/cardfields.js';
 import { clip, idList } from './lib/pilltext.js';
 import { isSameSiteUrl } from './lib/domain.js';
-import { decodeStapeTunnel } from './lib/stape.js';
 
 const recordBtn = document.getElementById('recordBtn');
 const clearBtn  = document.getElementById('clearBtn');
@@ -231,12 +230,6 @@ function providerPills(r) {
 // Transport pill for a hit decrypted out of a taggrs custom-loader envelope. Sits
 // next to the provider pill — the same slot as the Stape b64 sub-pill — because
 // it describes the same thing: an obfuscated delivery the panel saw through.
-function stapePill(r) {
-  if (!r._stape) return '';
-  const tip = `Stape Custom Loader — the request path was base64-encoded in ?${r._stape.encodedParam}= of a URL on ${r._stape.host}. See the detail for the disguised original.`;
-  return `<span class="pill pill-stape" title="${escapeHtml(tip)}">Stape b64</span>`;
-}
-
 function taggrsPill(r) {
   if (!r._taggrs) return '';
   const tip = `Decrypted from a taggrs custom-loader (AES-256-GCM) envelope sent to ${r._taggrs.host} — the real request was hidden as an opaque blob. See the detail for the encrypted original.`;
@@ -1198,14 +1191,6 @@ function detailHtml(r) {
     extras = section('taggrs envelope (AES-256-GCM, decrypted in-session)', kvTable(rows)) + extras;
   }
 
-  if (r._stape) {
-    extras = section('Stape tunnel (base64, decoded)', kvTable([
-      ['delivered to', r._stape.host],
-      ['encoded in param', r._stape.encodedParam],
-      ['disguised request', r._stape.original],
-    ])) + extras;
-  }
-
   const qSection = section('Query parameters', `<table class="det-table">${paramRows(r.queryParams)}</table>`);
   const bSection = (r.bodyParams && Object.keys(r.bodyParams).length)
     ? section('Body parameters', `<table class="det-table">${paramRows(r.bodyParams)}</table>`) : '';
@@ -1311,7 +1296,7 @@ function cardInnerHtml(r) {
     </div>
     <div class="ev-name">${escapeHtml(eventName(r) || '(no event name)')}</div>
     ${dl ? `<div class="ev-dl" title="document location (dl)">${escapeHtml(dl)}</div>` : ''}
-    <div class="ev-pills">${providerPills(r)}${stapePill(r)}${taggrsPill(r)}${flagPills(r)}${consentPills(r)}</div>
+    <div class="ev-pills">${providerPills(r)}${taggrsPill(r)}${flagPills(r)}${consentPills(r)}</div>
     ${summaryPills(r) ? `<div class="ev-summary">${summaryPills(r)}</div>` : ''}
     ${detailHtml(r)}`;
 }
@@ -1435,20 +1420,6 @@ function ingestRequest(req, ts, source) {
   if (recs) {
     for (const r of recs) { r._source = source; commitRecord(block, r, req, ts); }
     return;
-  }
-  // Stape tunnel for any provider other than GA4 (which decodes its own): rerun the
-  // registry on the plaintext URL, keep the disguised original for the detail.
-  const stape = decodeStapeTunnel(req.url);
-  if (stape) {
-    const tunneled = parseRequest(stape.url, req.postData, block.navUrl);
-    if (tunneled) {
-      for (const r of tunneled) {
-        r._source = source;
-        r._stape = { host: stape.host, encodedParam: stape.encodedParam, original: req.url };
-        commitRecord(block, r, { url: stape.url, method: req.method, postData: req.postData }, ts);
-      }
-      return;
-    }
   }
   // Meta pixel-init signal (silent-pixel detection): the config fetch is not a
   // tracking event, so no parser claims it. When Meta recording is on, register
