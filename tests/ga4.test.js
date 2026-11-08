@@ -283,3 +283,14 @@ test('parseGa4Request surfaces decoded items end-to-end', () => {
   assert.equal(r.items[1].fields.item_name, 'Daikin Altherma M HW 200, Warmwasser-Wärmepumpe 200L');
   assert.equal(r.items[1].custom.test_ci_color, 'weiß');                   // %C3%9F → ß decoded
 });
+
+test('purchase: value, currency and transaction id in the normalized revenue shape', () => {
+  const base = 'https://region1.google-analytics.com/g/collect?v=2&tid=G-TEST000001&cid=1.2&en=purchase&cu=EUR';
+  const r = parseGa4Request(base + '&epn.value=49.9&ep.transaction_id=T-1001', null);
+  assert.deepEqual(r.revenue, { value: '49.9', currency: 'EUR' });
+  assert.equal(r.transactionId, 'T-1001');
+  // string value (ep.value) when the site passes it as text; currency only as ep.currency
+  const s = parseGa4Request(base.replace('&cu=EUR', '') + '&ep.value=12,5&ep.currency=CHF', null);
+  assert.deepEqual(s.revenue, { value: '12,5', currency: 'CHF' });
+  assert.equal(parseGa4Request(base, null).revenue, null);
+});

@@ -251,6 +251,7 @@ function flagPills(r) {
     if (r.signalType === 'config-no-event') {
       return '<span class="pill pill-consent-denied" title="Pixel init (signals/config) seen but no /tr/ event fired within 2s — likely Meta traffic-permission settings">no event sent</span>';
     }
+    if (r.revenue) out.push(revenuePill(r.revenue, 'cd[value] / cd[currency]'));
     if (!r.standardEvent) out.push('<span class="pill pill-ee" title="Custom event (not a Meta standard event)">custom event</span>');
     if (f.dedup)          out.push('<span class="pill pill-event" title="eid present — event ID for CAPI deduplication">dedup</span>');
     if (f.cdCount)        out.push(`<span class="pill pill-ep" title="${f.cdCount} custom-data field(s): cd[...]">cd ×${f.cdCount}</span>`);
@@ -413,6 +414,8 @@ function flagPills(r) {
   if (r.provider === 'openai') return out.join('');
   const f = r.flags;
   if (!f) return '';
+  if (r.provider === 'ga4' && r.revenue) out.push(revenuePill(r.revenue, 'epn.value (ep.value) / cu'));
+  if (r.provider === 'ga4' && r.transactionId) out.push(`<span class="pill pill-event" title="ep.transaction_id: ${escapeHtml(r.transactionId)}">order: ${escapeHtml(clip(r.transactionId))}</span>`);
   if (f.conversion)    out.push('<span class="pill pill-conversion" title="_c=1 — conversion / key event">conversion</span>');
   if (f.externalEvent) out.push('<span class="pill pill-ee" title="_ee=1 — external event (created via GA4 configuration)">external</span>');
   if (f.sessionStart)  out.push('<span class="pill pill-event" title="_ss=1 — session start">session start</span>');

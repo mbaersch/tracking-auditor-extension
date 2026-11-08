@@ -175,3 +175,12 @@ test('multipart POST to /tr/ (id/ev only in the body) is detected', () => {
   assert.equal(r.customData.currency, 'EUR');
   assert.equal(r.identifiers.email, 1);
 });
+
+test('cd[value]/cd[currency] become the normalized revenue, plus order id and content ids', () => {
+  const r = parseMetaRequest('https://www.facebook.com/tr/?id=123456789012345&ev=Purchase'
+    + '&cd%5Bvalue%5D=49.90&cd%5Bcurrency%5D=EUR&cd%5Border_id%5D=A-1&cd%5Bcontent_ids%5D=%5B%22SKU-1%22%5D', null);
+  assert.deepEqual(r.revenue, { value: '49.90', currency: 'EUR' });
+  assert.equal(r.orderId, 'A-1');
+  assert.equal(r.contentIds, '["SKU-1"]');
+  assert.equal(parseMetaRequest('https://www.facebook.com/tr/?id=1&ev=PageView', null).revenue, null);
+});
