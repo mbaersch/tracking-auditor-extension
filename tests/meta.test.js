@@ -150,3 +150,28 @@ test('extractMetaUserData / summarize work standalone', () => {
   assert.deepEqual(summarizeMetaIdentifiers(ud), { email: 1, phone: 1, name: 0, address: 0 });
   assert.equal(parseMetaConsent((k) => null), null);
 });
+
+// Shape of a real multipart Purchase (atomkraftwerke24.de, values replaced): large
+// events go as FormData POST to /tr/ with an EMPTY query — id and ev live only in
+// the body, so a parser that only splits urlencoded text loses the whole hit.
+function multipart(fields, boundary = '----WebKitFormBoundaryTEST0000000000') {
+  return Object.entries(fields)
+    .map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`)
+    .join('') + `--${boundary}--\r\n`;
+}
+
+test('multipart POST to /tr/ (id/ev only in the body) is detected', () => {
+  const body = multipart({
+    id: '123456789012345', ev: 'Purchase', dl: 'https://shop.example/checkout',
+    'cd[value]': '49.90', 'cd[currency]': 'EUR', 'cd[content_ids]': '["SKU-1"]',
+    'ud[em]': 'a'.repeat(64), rqm: 'SB',
+  });
+  const r = parseMetaRequest('https://www.facebook.com/tr/', { text: body });
+  assert.ok(r, 'multipart Purchase should be recognised');
+  assert.equal(r.id, '123456789012345');
+  assert.equal(r.ev, 'Purchase');
+  assert.equal(r.method, 'POST');
+  assert.equal(r.customData.value, '49.90');
+  assert.equal(r.customData.currency, 'EUR');
+  assert.equal(r.identifiers.email, 1);
+});

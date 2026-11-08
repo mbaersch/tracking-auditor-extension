@@ -57,3 +57,13 @@ test('every provider has a declared expected algo', () => {
     assert.ok(Array.isArray(EXPECTED_ALGO[p]) && EXPECTED_ALGO[p].length, `missing EXPECTED_ALGO.${p}`);
   }
 });
+
+test('extractParams reads multipart/form-data bodies, first value wins', async () => {
+  const { extractParams, parseMultipart } = await import('../lib/params.js');
+  const b = '--XyZ\r\nContent-Disposition: form-data; name="ev"\r\n\r\nPurchase\r\n'
+    + '--XyZ\r\nContent-Disposition: form-data; name="dl"\r\n\r\nhttps://a.example/?x=1&y=2\r\n'
+    + '--XyZ\r\nContent-Disposition: form-data; name="ev"\r\n\r\nSecond\r\n--XyZ--\r\n';
+  const { bodyParams } = extractParams('https://h.example/p', { text: b });
+  assert.deepEqual(bodyParams, { ev: 'Purchase', dl: 'https://a.example/?x=1&y=2' });
+  assert.equal(parseMultipart('ev=Purchase&id=1'), null);
+});
