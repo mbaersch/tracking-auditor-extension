@@ -184,6 +184,9 @@
     /* Deep Capture active: flip the strip from an amber warning to a green all-clear. */
     .blk-notice.blk-notice-ok { background: rgba(22, 163, 74, 0.10); border-left-color: #16a34a; }
     .blk-notice.blk-notice-ok .blk-notice-icon { color: #16a34a; }
+    /* Neutral info (e.g. a transport format was recognised): not a warning. */
+    .blk-notice.blk-notice-info { background: rgba(37, 99, 235, 0.08); border-left-color: #2563eb; }
+    .blk-notice.blk-notice-info .blk-notice-icon { color: #2563eb; }
     @media (prefers-color-scheme: dark) {
       /* --surface-warm is too close to the panel bg in dark; lift to a legible amber. */
       .blk-notice { background: rgba(251, 191, 36, 0.16); color: var(--text); border-left-color: #fbbf24; }
@@ -191,6 +194,8 @@
       .blk-notice-mute { color: #fdba74; }
       .blk-notice.blk-notice-ok { background: rgba(34, 197, 94, 0.16); border-left-color: #22c55e; }
       .blk-notice.blk-notice-ok .blk-notice-icon { color: #22c55e; }
+      .blk-notice.blk-notice-info { background: rgba(96, 165, 250, 0.16); border-left-color: #60a5fa; }
+      .blk-notice.blk-notice-info .blk-notice-icon { color: #60a5fa; }
     }
 
     /* Event cards — tinted per provider so a mixed stream scans easily: GA4 amber,

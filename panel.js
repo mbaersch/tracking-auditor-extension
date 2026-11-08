@@ -19,6 +19,7 @@ import { parseAwinRequest } from './lib/awin.js';
 import { parseOpenAiRequest } from './lib/openai.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
+import { parseStapeDataClient } from './lib/stapedata.js';
 import { algoLabel, algoNote } from './lib/params.js';
 import { eventName, accountId, accountTitle, docLocation } from './lib/cardfields.js';
 import { clip, idList } from './lib/pilltext.js';
@@ -1323,9 +1324,8 @@ function appendEventDom(block, r) {
       if (caret) { caret.textContent = det.hidden ? '▼' : '▲'; caret.title = det.hidden ? 'Show all parameters' : 'Hide parameters'; }
     }
   });
-  // Newest event on top; keep any SW notice pinned above the cards.
-  const anchor = block._swNoticeEl ? block._swNoticeEl.nextSibling : block._eventsEl.firstChild;
-  block._eventsEl.insertBefore(card, anchor);
+  // Newest event on top; keep the notice strips pinned above the cards.
+  block._eventsEl.insertBefore(card, firstCardAnchor(block));
   r._el = card;
   // Both sets are fed here, before the show filter runs (applyCardVisibility only
   // hides DOM), so a hidden service is still recorded as seen and as live.
@@ -1431,6 +1431,8 @@ function ingestRequest(req, ts, source) {
     const sig = parseMetaSignal(req.url);
     if (sig) { registerMetaSignal(currentBlock(), sig, ts); return; }
   }
+  const dataClient = parseStapeDataClient(req.url, req.postData);
+  if (dataClient) { showDataClientNotice(block, dataClient); return; }
   // Async side-path: the LinkedIn /wa/ POST is base64(gzip(JSON)) and needs an
   // async DecompressionStream, so it can't ride the synchronous parser registry.
   // onRequestFinished listeners are fire-and-forget, so awaiting here is safe; the
@@ -1646,6 +1648,31 @@ function paintSwNotice(el) {
       `<a class="blk-notice-mute" role="button" tabindex="0">mute for session</a>`;
   bindNoticeAction(el.querySelector('.blk-notice-mute'), () => { state.swNoticeMuted = true; removeAllSwNotices(); });
   if (!deep) bindNoticeAction(el.querySelector('.blk-notice-act'), requestDeepCapture);
+}
+
+// --- Stape Data Client notice (format, not a service) -----------------------
+// One strip per block and endpoint, listing the event names seen there.
+function showDataClientNotice(block, dc) {
+  const notices = block._dataClientNotices || (block._dataClientNotices = {});
+  const key = dc.host + dc.path;
+  let n = notices[key];
+  if (!n) {
+    const el = document.createElement('div');
+    el.className = 'blk-notice blk-notice-info';
+    block._eventsEl.insertBefore(el, firstCardAnchor(block));
+    n = notices[key] = { el, events: [] };
+  }
+  if (n.events.includes(dc.event)) return;
+  n.events.push(dc.event);
+  n.el.innerHTML = `<span class="blk-notice-icon" aria-hidden="true">ℹ</span>` +
+    `<span class="blk-notice-text">Stape Data Client at ${escapeHtml(key)} (${escapeHtml(n.events.join(', '))}) — the Data Tag's own JSON format, ` +
+    `a transport rather than a service: which services the server container feeds is not visible in the browser.</span>`;
+}
+
+function firstCardAnchor(block) {
+  let a = block._eventsEl.firstChild;
+  while (a && a.classList && a.classList.contains('blk-notice')) a = a.nextSibling;
+  return a;
 }
 
 function bindNoticeAction(a, fn) {

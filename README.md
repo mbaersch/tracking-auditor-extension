@@ -176,6 +176,7 @@ Unreleased
 - LinkedIn: `/wa/` beacons with `fmt=b` carry plain base64 JSON; only the gzipped `fmt=g` form was decoded.
 - GA4 now reads the value (`epn.value` / `ep.value`) and `ep.transaction_id`, Meta `cd[value]`, `cd[currency]`, `cd[order_id]` and `cd[content_ids]` — both show the value pill like the other services.
 - Google Ads through a **Google tag gateway**: the short form `<path>/as/p/c/<id>/` on the site's own domain is a conversion and folds into one card with its mirrors (verified against a real gateway).
+- **Stape Data Client** hint: the Stape Data Tag's own JSON format (`?v=2&event=<name>` with the same `event_name` in the body) shows as an info strip above the page's cards, with endpoint and event names. It is a transport, not a service, so there is no card; JSON Client and walkerOS are not flagged because their format is free-form.
 - Meta: advanced matching in the nested form `aud[em][0][v]` (next to `aud[em][0][s]`) is read as a hash slot; only the flat `aud[em]` was known.
 
 v1.1.0
