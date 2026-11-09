@@ -133,3 +133,37 @@ test('extractFloodlightUserData flags only real emails, not product/order ids', 
   const ud = extractFloodlightUserData({ u2: 'a@b.de' });
   assert.ok(ud && ud.u2 && ud.u2.bucket === 'email');
 });
+
+// Real capture, atomkraftwerke24.de 2026-11-09: a Google tag with a DC- id and no
+// Floodlight activity tag sends only this ccm/collect page_view.
+const DC_CCM_COLLECT = 'https://www.google.com/ccm/collect?rcb=10&frm=0&apvc=0&auid=1723142630.1794249870&dt=atomkraftwerke24.de%20%E2%80%93%20Ein%20Testshop.%20Nicht%20ernst%20gemeint%2C%20aber%20n%C3%BCtzlich&tid=DC-12345667&en=page_view&dl=https%3A%2F%2Fatomkraftwerke24.de%2F&scrsrc=stp.atomkraftwerke24.de&rnd=202481454.1794249870&navt=n&npa=0&gdid=dNGJiYT&gtm=45fe6b61h2z8c_DC-12345667za20szb836065292zd836065292xecxf3&gcs=G111&gcd=13r3r3r2r5l1&dma_cps=a&dma=1&tft=1794249875948&tfd=17328&tids=DC-12345667&fmt=8';
+
+test('floodlight: ccm/collect with tid=DC- is a measurement card', () => {
+  const r = parseFloodlightRequest(DC_CCM_COLLECT, null, 'https://atomkraftwerke24.de/');
+  assert.equal(r.provider, 'floodlight');
+  assert.equal(r.signalType, 'measurement');
+  assert.equal(r.advertiserId, '12345667');
+  assert.equal(r.event, 'page_view');
+  assert.equal(r.transport, 'google');
+  assert.equal(r.pageUrl, 'https://atomkraftwerke24.de/');
+  assert.equal(r.consent.adStorage, 'granted');
+  assert.equal(r.consent.npa, '0');
+  assert.equal(r.flags.counter, false);
+  assert.equal(r._collapseKey, 'fl:12345667:collect:page_view');
+});
+
+test('floodlight: ccm/collect on the site domain (tag gateway) is first-party', () => {
+  const url = 'https://data.example.com/ccm/collect?tid=DC-12345667&en=page_view&gcs=G111';
+  assert.equal(parseFloodlightRequest(url, null, 'https://www.example.com/').transport, 'first-party');
+});
+
+test('floodlight: ccm/collect with tid=AW- or without tid is not Floodlight', () => {
+  assert.equal(parseFloodlightRequest('https://www.google.com/ccm/collect?tid=AW-123456789&en=page_view'), null);
+  assert.equal(parseFloodlightRequest('https://www.google.com/ccm/collect?en=page_view&ae=g'), null);
+  assert.equal(parseFloodlightRequest('https://ad.doubleclick.net/ccm/s/collect?auid=1.2&gcs=G111'), null);
+});
+
+test('googleads: ccm/collect with tid=DC- stays out of Google Ads', async () => {
+  const { parseGoogleAdsRequest } = await import('../lib/googleads.js');
+  assert.equal(parseGoogleAdsRequest(DC_CCM_COLLECT, null, 'https://atomkraftwerke24.de/'), null);
+});

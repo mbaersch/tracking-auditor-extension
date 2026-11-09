@@ -163,9 +163,16 @@ function providerPills(r) {
   }
   if (r.provider === 'floodlight') {
     const pills = ['<span class="pill pill-floodlight" title="Google Marketing Platform Floodlight (CM360 / DV360) — ad.doubleclick.net/activity + *.fls.doubleclick.net/activityi">Floodlight</span>'];
-    pills.push(r.flags && r.flags.sales
-      ? '<span class="pill pill-event" title="a sales activity (dc_pre=…;cost / qty present) — a conversion with value">sales</span>'
-      : '<span class="pill pill-event" title="a counter activity — a page/action count, no monetary value">counter</span>');
+    if (r.signalType === 'measurement') {
+      pills.push('<span class="pill pill-event" title="ccm/collect with tid=DC-… — the Google tag&#39;s own measurement ping, not a Floodlight activity">measurement</span>');
+    } else {
+      pills.push(r.flags && r.flags.sales
+        ? '<span class="pill pill-event" title="a sales activity (dc_pre=…;cost / qty present) — a conversion with value">sales</span>'
+        : '<span class="pill pill-event" title="a counter activity — a page/action count, no monetary value">counter</span>');
+    }
+    if (r.transport === 'first-party') {
+      pills.push('<span class="pill pill-custom" title="endpoint on the site&#39;s own registrable domain (page eTLD+1 == host eTLD+1)">first-party</span>');
+    }
     return pills.join('');
   }
   if (r.provider === 'linkedin') {
@@ -822,7 +829,7 @@ function detailHtml(r) {
   } else if (r.provider === 'floodlight') {
     meta = [
       ['event (type/cat)', r.event],
-      ['activity kind', r.flags && r.flags.sales ? 'sales (has value)' : 'counter'],
+      ['activity kind', r.signalType === 'measurement' ? 'measurement (Google tag ccm/collect, no activity)' : (r.flags && r.flags.sales ? 'sales (has value)' : 'counter')],
       ['floodlight config (src)', r.advertiserId],
       ['activity group (type)', r.group],
       ['activity tag (cat)', r.activityTag],
@@ -832,7 +839,8 @@ function detailHtml(r) {
       ['Google Ads click (gclaw)', r.gclid],
       ['fired via', r.flags && r.flags.googleAdsLinked ? 'Google Ads / Signals (gtag)' : (r.customVars ? 'advertiser activity (custom vars)' : null)],
       ['transport', r.transport], ['method', r.method],
-      ['page url (~oref)', r.pageUrl],
+      [r.signalType === 'measurement' ? 'page url (dl)' : 'page url (~oref)', r.pageUrl],
+      ['page title (dt)', r.title],
       ['request url', r.effectiveUrl],
     ].filter(([, v]) => v != null && v !== '');
 
