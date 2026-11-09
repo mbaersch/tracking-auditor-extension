@@ -171,6 +171,8 @@ If you want to modify the extension or run an unreleased version, load it unpack
 ### Keeping the sibling projects in step
 The same service knowledge lives in three sibling projects ([tracking-auditor](https://github.com/mbaersch/tracking-auditor), [stage-in-a-box](https://github.com/mbaersch/stage-in-a-box) and [ec-data-validator](https://github.com/mbaersch/ec-data-validator)). How they are kept in step — which project is the source for what, intentional gaps, and a script that runs reference requests for every format variant through all of them — is described in the tracking-auditor repo under [abgleich/README.md](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md) (German). After changing an endpoint, a parser or a decoded format, run it there. The parsers in `lib/` are copied unchanged into tracking-auditor's `pii-lib/`; the script reports any difference.
 
+GitHub Actions runs `npm test` and this comparison on every push and pull request (`.github/workflows/tests.yml`), the comparison as a separate job against the current state of the sibling repos. During a change that spans several repos it stays red until all of them are updated.
+
 ## Changelog
 
 v1.2.0
