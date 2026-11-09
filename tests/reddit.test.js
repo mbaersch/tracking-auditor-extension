@@ -105,3 +105,14 @@ test('POST /rp with form body is detected and read like the GET beacon', () => {
   assert.equal(r.revenue.currency, 'EUR');
   assert.equal(parseRedditRequest('https://alb.reddit.com/rpx?id=a2_x', null), null);
 });
+
+test('conversionId and transactionId arrive SHA-256-hashed; value keeps the site\'s decimal separator', () => {
+  const pv = parseRedditRequest(PAGEVISIT, null);
+  assert.equal(pv.conversion.conversionIdAlgo, 'sha256');
+  const lead = parseRedditRequest(LEAD, null);
+  assert.equal(lead.conversion.conversionIdAlgo, 'sha256');
+  assert.equal(lead.conversion.transactionIdAlgo, 'sha256');
+  assert.equal(lead.revenue.value, '12,55');
+  const punkt = parseRedditRequest(LEAD.replace('m.valueDecimal=12%2C55', 'm.valueDecimal=99.95'), null);
+  assert.equal(punkt.revenue.value, '99.95');
+});

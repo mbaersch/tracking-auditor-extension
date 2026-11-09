@@ -167,3 +167,22 @@ test('/wa/ fmt=b: plain base64(JSON) without gzip is decoded too', async () => {
   assert.equal(r.pid, '12345678');
   assert.equal(r.identifiers.email, 1);
 });
+
+// eventId (dedup key for the Conversions API), captured on atomkraftwerke24.de 2026-11 with a GTM variable
+// that builds one id per dataLayer push; present on page views and conversions.
+const PV_EVENTID = 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1794226615400&url=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&tm=gtmv2&eventId=1794226615349.891383.12';
+const CV_EVENTID = 'https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=12345678&time=1794226640100&conversionId=111111111111&url=https%3A%2F%2Fatomkraftwerke24.de%2Fectest.html&tm=gtmv2&eventId=1794226615349.891383.19';
+
+test('eventId: dedup flag and id on page view and conversion; absent → no dedup', () => {
+  const pv = parseLinkedInRequest(PV_EVENTID, null);
+  assert.equal(pv.eventId, '1794226615349.891383.12');
+  assert.equal(pv.flags.dedup, true);
+  assert.equal(pv.isConversion, false);
+  const cv = parseLinkedInRequest(CV_EVENTID, null);
+  assert.equal(cv.eventId, '1794226615349.891383.19');
+  assert.equal(cv.flags.dedup, true);
+  assert.equal(cv.conversionId, '111111111111');
+  const ohne = parseLinkedInRequest(PV_PX, null);
+  assert.equal(ohne.eventId, null);
+  assert.equal(ohne.flags.dedup, false);
+});
