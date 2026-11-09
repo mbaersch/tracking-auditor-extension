@@ -173,7 +173,7 @@ The same service knowledge lives in three sibling projects ([tracking-auditor](h
 
 ## Changelog
 
-Unreleased
+v1.2.0
 - Meta: large events (e.g. a Purchase with user data) sent as multipart POST, with id and event only in the body, were not recognised at all — multipart bodies are now read.
 - Reddit: the current pixel posts to `alb.reddit.com/rp` (event and id in the query, the rest as form body); only the `/rp.gif` GET beacon was recognised.
 - LinkedIn: `/wa/` beacons with `fmt=b` carry plain base64 JSON; only the gzipped `fmt=g` form was decoded.
