@@ -5,16 +5,19 @@
 // itself is never shown — only the English panel UI is — so the cards are the
 // whole picture; their content is English by construction (see fixtures-demo.js).
 //
-// Needs Playwright + a Chromium build:  npm install  &&  npx playwright install chromium
-// Run:  npm run screenshots
+// Needs global Playwright (+ `npx playwright install chromium`) via NODE_PATH and
+// the global `imgopt` CLI. Run:  npm run screenshots
 
 import http from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
-import sharp from 'sharp';
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { DEMO_BLOCKS } from './fixtures-demo.js';
+
+// ESM `import` ignores NODE_PATH; only require() resolves the global install.
+const { chromium } = createRequire(import.meta.url)('playwright');
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const outDir = join(root, 'webstore');
@@ -149,25 +152,12 @@ function promoHtml(iconDataUri, w, h) {
   </div></body></html>`;
 }
 
-// Playwright writes true-color PNGs (the marquee tile alone is ~200 kB). These
-// are web-store / website assets, so shrink them the way TinyPNG does: lossy
-// palette quantization via libimagequant (sharp's `palette: true`), which drops
-// the marquee to ~40 kB and the panel shots by ~60% with no visible loss. Only
-// overwrite when the result is actually smaller, so re-runs never bloat a file.
-const kb = (n) => (n / 1024).toFixed(1) + ' kB';
-async function optimize(names) {
-  let before = 0, after = 0;
-  for (const n of names) {
-    const p = join(outDir, n);
-    const src = readFileSync(p);
-    const out = await sharp(src).png({ palette: true, quality: 90, effort: 10 }).toBuffer();
-    const kept = out.length < src.length ? out : src;
-    if (out.length < src.length) writeFileSync(p, out);
-    before += src.length;
-    after += kept.length;
-    console.log(`  • ${n.padEnd(28)} ${kb(src.length).padStart(9)} → ${kb(kept.length).padStart(9)}`);
-  }
-  console.log(`Optimized ${names.length} PNGs: ${kb(before)} → ${kb(after)} (−${(100 - after / before * 100).toFixed(0)}%)`);
+// Playwright writes true-color PNGs (the marquee tile alone is ~200 kB); imgopt
+// palette-quantizes them in place, only overwriting when smaller. Run it once on
+// fresh shots only — a second lossy pass costs quality for nothing.
+function optimize(names) {
+  // shell: true — on Windows the global `imgopt` is a .cmd shim.
+  execFileSync('imgopt', names.map(n => `"${join(outDir, n)}"`), { stdio: 'inherit', shell: true });
 }
 
 async function main() {
@@ -224,7 +214,7 @@ async function main() {
   }
 
   console.log(`Generated ${shots.length} assets → webstore/`);
-  await optimize(shots);
+  optimize(shots);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -9,9 +9,5 @@
     "build": "node scripts/package-extension.js",
     "screenshots": "node scripts/generate-screenshots.js",
     "testpage": "node scripts/serve-test-pages.js"
-  },
-  "devDependencies": {
-    "playwright": "^1.49.0",
-    "sharp": "^0.35.3"
   }
 }
