@@ -104,6 +104,12 @@ Awin:
 - Sale
 - Product-level tracking
 
+JENTIS (off by default):
+- Recognised by its request body — every instance runs on its own random subdomain
+- Page views, custom events (`track: "event"`), e-commerce commands, the client's own events (scroll, engagement, new user / session)
+- Consent per vendor (granted / denied / `ncm`) and the consent document
+- Fields the site's JENTIS container sends, verbatim
+
 
 It adds a **"Tracking Auditor"** tab to DevTools. Hit **Start & Reload** — the
 page reloads and every hit is listed in blocks per navigation, **newest first**, with
@@ -174,6 +180,9 @@ The same service knowledge lives in three sibling projects ([tracking-auditor](h
 GitHub Actions runs `npm test` and this comparison on every push and pull request (`.github/workflows/tests.yml`), the comparison as a separate job against the current state of the sibling repos. During a change that spans several repos it stays red until all of them are updated.
 
 ## Changelog
+
+unreleased
+- **JENTIS** (off by default): recognised by its request body (`{ client, cmd, data: [ … ] }` with a `documentType` per document), since every instance runs on a random subdomain. One card per event or consent document; user and session documents ride along in every request and get none. The card is named after the pushed command (`pageview`, `order` …), the `event_name` of a custom event, or the client's own `pluginid` (scroll, engagement, new user / session). Consent per vendor (granted / denied / `ncm`) is shown as pills and a table. Events sent before the consent decision arrive again with the same id after it — they fold into one card (`sent ×2`). E-commerce commands carry values only if the site's JENTIS container maps them; otherwise just the command arrives, and the card says so. Containers that do map them send products column-wise (one `product_*` array per field); the card zips them back into items (`items ×N`, a products table with name, id, price and every other non-empty field).
 
 v1.2.0
 - Meta: large events (e.g. a Purchase with user data) sent as multipart POST, with id and event only in the body, were not recognised at all — multipart bodies are now read.

@@ -32,6 +32,7 @@
       --card-outbrain:  #fdf2f8;   /* rose tint — native-ads sibling to Taboola, distinct from Pinterest's red */
       --card-awin:      #f5f3ff;   /* violet tint — affiliate; distinct from Criteo's periwinkle */
       --card-openai:    #eef0f3;   /* cool graphite — the one neutral tint, matching a black/white brand */
+      --card-jentis:    #e8f1ff;   /* cobalt tint — server-side platform, bluer than LinkedIn's azure */
       --text: #1e293b;
       --text-muted: #64748b;
       --text-faint: #94a3b8;
@@ -77,6 +78,7 @@
       --card-outbrain:  #2e1522;   /* rose */
       --card-awin:      #241a33;   /* violet */
       --card-openai:    #23262c;   /* cool graphite */
+      --card-jentis:    #142035;   /* cobalt */
         --text: #e2e8f0;
         --text-muted: #94a3b8;
         --text-faint: #64748b;
@@ -218,6 +220,7 @@
     .ev.p-outbrain { background: var(--card-outbrain); }
     .ev.p-awin { background: var(--card-awin); }
     .ev.p-openai { background: var(--card-openai); }
+    .ev.p-jentis { background: var(--card-jentis); }
     .ev.t-stape-b64, .ev.t-custom-path { background: var(--surface-warm-hover); }
     /* Color-code cards OFF (Advanced): every card falls back to the neutral
        surface so a busy mixed stream stops competing for attention; the provider
@@ -259,6 +262,7 @@
     .pill-awin      { background: #7c3aed; color: #fff; }
     /* Black with white text — TikTok's black pill is set apart by its cyan text. */
     .pill-openai    { background: #0d0d0d; color: #fff; }
+    .pill-jentis    { background: #1d4ed8; color: #fff; }
     .pill-consent-info { background: #ede9fe; color: #5b21b6; }
     .pill-em       { background: #dbeafe; color: #1e40af; }
     .pill-ud       { background: #e2e8f0; color: #475569; }
@@ -278,6 +282,10 @@
     /* width:1px is the shrink-to-fit table idiom, not a measurement — leave it. */
     .det-table td:first-child { white-space: nowrap; color: var(--text-strong); font-weight: 600; width: 1px; padding-right: 0.85em; }
     .det-table td:nth-child(2) { word-break: break-all; font-family: 'Fira Code', 'Consolas', monospace; }
+    /* Item lists: the first column is a product name, not a short key — let it wrap
+       and cap it, or one long bundle name squeezes every value into a sliver. */
+    .det-table.det-items td:first-child { white-space: normal; width: 40%; word-break: normal; overflow-wrap: anywhere; }
+    .det-table.det-items td:nth-child(2) { word-break: normal; overflow-wrap: anywhere; }
     .det-section { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 700; margin: 0.6em 0 0.15em; }
     .det-dump { font-size: var(--fs-xs); font-family: 'Fira Code', 'Consolas', monospace; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-width: 100%; margin: 0.15em 0 0; padding: 0.45em; background: rgba(127,127,127,0.08); border-radius: 0.25rem; }
     .det-note { font-size: var(--fs-sm); line-height: 1.5; color: var(--text); margin: 0.15em 0 0; padding: 0.45em 0.6em; background: rgba(127,127,127,0.08); border-radius: 0.25rem; }
@@ -324,7 +332,8 @@
         <label><input type="checkbox" data-rec="taboola"> Taboola</label>
         <label><input type="checkbox" data-rec="outbrain"> Outbrain</label>
         <label><input type="checkbox" data-rec="awin"> Awin</label>
-        <span class="ctl-hint">which services are captured (applies to new hits) — Criteo / Taboola / Outbrain / Awin are off by default</span>
+        <label><input type="checkbox" data-rec="jentis"> JENTIS</label>
+        <span class="ctl-hint">which services are captured (applies to new hits) — Criteo / Taboola / Outbrain / Awin / JENTIS are off by default</span>
       </div>
       <div class="ctl-row">
         <span class="ctl-label">Advanced</span>

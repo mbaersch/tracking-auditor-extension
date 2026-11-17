@@ -27,6 +27,9 @@ test('accountId / accountTitle per provider', () => {
   assert.equal(accountTitle({ provider: 'awin' }), 'Awin merchant (MID)');
   assert.equal(accountId({ provider: 'openai', pixelId: 'Oa1' }), 'Oa1');
   assert.equal(accountTitle({ provider: 'openai' }), 'Pixel ID (pid)');
+  assert.equal(accountId({ provider: 'jentis', account: 'example-com.live' }), 'example-com.live');
+  assert.equal(accountTitle({ provider: 'jentis' }), 'JENTIS account');
+  assert.equal(eventName({ provider: 'jentis', event: 'order' }), 'order');
 });
 
 test('eventName: plain and special cases', () => {
@@ -73,6 +76,6 @@ test('unknown provider falls back to GA4-style (tid / Measurement ID / en / dl)'
 
 test('every registered PARSER provider has a descriptor', () => {
   const providers = ['ga4', 'meta', 'uet', 'tiktok', 'pinterest', 'googleads', 'floodlight',
-    'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
+    'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin', 'jentis'];
   for (const p of providers) assert.ok(CARD_FIELDS[p], `missing descriptor for ${p}`);
 });

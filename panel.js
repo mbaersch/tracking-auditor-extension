@@ -17,6 +17,7 @@ import { parseTaboolaRequest } from './lib/taboola.js';
 import { parseOutbrainRequest } from './lib/outbrain.js';
 import { parseAwinRequest } from './lib/awin.js';
 import { parseOpenAiRequest } from './lib/openai.js';
+import { parseJentisRequest } from './lib/jentis.js';
 import { isServiceWorkerPhantom, isTagGatewaySwIframe } from './lib/har.js';
 import { isTaggrsRequest, decodeTaggrsRequest, looksLikeTaggrsLoader, extractTaggrsKey } from './lib/taggrs.js';
 import { parseStapeDataClient } from './lib/stapedata.js';
@@ -59,6 +60,9 @@ const PARSERS = [
   // Returns one record per event: the oaiq SDK batches several measure() calls
   // into a single POST.
   { id: 'openai', parse: parseOpenAiRequest },
+  // Claimed by body signature, not URL (random subdomain per instance); one
+  // record per event/consent document in the batch.
+  { id: 'jentis', parse: parseJentisRequest },
 ];
 
 const state = {
@@ -69,8 +73,8 @@ const state = {
   // the stream with retargeting/native-ads pills — the user opts in per service.
   // On update these keys are absent from stored settings, so this false default
   // wins (loadSettings only Object.assigns the keys a user actually saved).
-  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: false, taboola: false, outbrain: false, awin: false },
-  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: true, taboola: true, outbrain: true, awin: true, text: '' }, // display filter (the "out" side)
+  record: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: false, taboola: false, outbrain: false, awin: false, jentis: false },
+  filter: { ga4: true, meta: true, uet: true, tiktok: true, pinterest: true, googleads: true, floodlight: true, linkedin: true, reddit: true, snapchat: true, hubspot: true, openai: true, criteo: true, taboola: true, outbrain: true, awin: true, jentis: true, text: '' }, // display filter (the "out" side)
   seen: new Set(),                                         // providers that actually appeared in the current capture (drives filter pills for since-disabled/imported services)
   // Providers that produced at least one hit in the RUNNING recording — the "is
   // this service alive on this site" marker on the filter pills. Deliberately
@@ -86,8 +90,8 @@ const state = {
 
 // Filter pills are built from this order; only enabled or already-seen services
 // get a pill, so the bar carries nothing for a service you never record.
-const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin'];
-const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', openai: 'OpenAI', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain', awin: 'Awin' };
+const PROVIDER_ORDER = ['ga4', 'googleads', 'floodlight', 'meta', 'uet', 'tiktok', 'pinterest', 'linkedin', 'reddit', 'snapchat', 'openai', 'hubspot', 'criteo', 'taboola', 'outbrain', 'awin', 'jentis'];
+const PROVIDER_LABEL = { ga4: 'GA4', googleads: 'Google Ads', floodlight: 'Floodlight', meta: 'Meta', uet: 'Bing', tiktok: 'TikTok', pinterest: 'Pinterest', linkedin: 'LinkedIn', reddit: 'Reddit', snapchat: 'Snapchat', openai: 'OpenAI', hubspot: 'HubSpot', criteo: 'Criteo', taboola: 'Taboola', outbrain: 'Outbrain', awin: 'Awin', jentis: 'JENTIS' };
 
 // --- helpers ---------------------------------------------------------------
 
@@ -218,6 +222,14 @@ function providerPills(r) {
     } else if (!(r.flags && r.flags.standardEvent)) {
       pills.push('<span class="pill pill-ee" title="Not one of the ten documented OpenAI standard event names">unknown event</span>');
     }
+    return pills.join('');
+  }
+  if (r.provider === 'jentis') {
+    const pills = [`<span class="pill pill-jentis" title="JENTIS — recognised by its request body; this instance runs on ${escapeHtml(r.host)}">JENTIS</span>`];
+    if (r.eventType === 'consent') pills.push('<span class="pill pill-consent-info" title="consent document — the per-vendor decision JENTIS stores and forwards">consent doc</span>');
+    else if (r.eventType === 'plugin') pills.push(`<span class="pill pill-consent-info" title="raised by the JENTIS client itself (pluginid ${escapeHtml(r.pluginId || '')}), not by a _jts.push">auto</span>`);
+    else if (r.eventType === 'event') pills.push('<span class="pill pill-ee" title="_jts.push({ track: &quot;event&quot; }) — name in event_name">custom event</span>');
+    else if (r.flags && r.flags.unknownCommand) pills.push(`<span class="pill pill-ee" title="pushed command not in the documented list: ${escapeHtml((r.pushedCommands || []).join(', '))}">unknown command</span>`);
     return pills.join('');
   }
   if (r.provider === 'hubspot') {
@@ -403,6 +415,18 @@ function flagPills(r) {
     else if (f.identify) out.push('<span class="pill pill-em" title="identify() data rides on this beacon (i=) — email / name in CLEARTEXT (HubSpot does not hash)">identify</span>');
     return out.join('');
   }
+  if (r.provider === 'jentis') {
+    const f = r.flags || {};
+    if (f.ecommerce) out.push(`<span class="pill pill-event" title="e-commerce command (${escapeHtml((r.pushedCommands || []).join(' → '))}). Product/order VALUES only arrive if the site's JENTIS container maps them to variables.">ecommerce</span>`);
+    if (f.itemCount) out.push(`<span class="pill pill-event" title="${f.itemCount} product(s), zipped from the container's product_* columns">items ×${f.itemCount}</span>`);
+    if (r.eventGroup) out.push(`<span class="pill pill-ep" title="event_group">group: ${escapeHtml(clip(r.eventGroup))}</span>`);
+    if (r.eventValue) out.push(`<span class="pill pill-ep" title="event_value">value: ${escapeHtml(clip(r.eventValue))}</span>`);
+    if (f.propertyCount) out.push(`<span class="pill pill-ep" title="${f.propertyCount} field(s) the site's JENTIS container chose to send (property.*)">fields ×${f.propertyCount}</span>`);
+    if (r._transports && r._transports.length > 1) {
+      out.push(`<span class="pill pill-ud" title="the same document (_id) arrived ${r._transports.length}× — JENTIS sends pre-consent events again after the decision, with more fields; the richest copy is shown">sent ×${r._transports.length}</span>`);
+    }
+    return out.join('');
+  }
   if (r.provider === 'openai') {
     const f = r.flags || {};
     const d = r.diagnostic;
@@ -470,6 +494,17 @@ function consentPills(r) {
           ? 'Stripped, credential-less POST carrying a real event — the shape the SDK uses when consent was denied'
           : 'Credential-less POST carrying only a session marker — the SDK sends that shape either way, so this hit does not say';
     out.push(`<span class="pill ${consentStateCls(s)}" title="${escapeHtml(tip)}">consent: ${s === 'unset' ? 'unknown' : s}</span>`);
+    return out.join('');
+  }
+  if (r.provider === 'jentis') {
+    const c = r.consent;
+    if (!c) return '';
+    const n = c.counts;
+    const tip = `Per-vendor consent (${c.source}): ${Object.entries(c.vendors).map(([v, s]) => `${v}=${s}`).join(', ')}. "ncm" is sent verbatim — what the JENTIS server does with it is not visible in the browser.`;
+    const parts = [['granted', 'pill-consent-granted', `✓${n.granted}`], ['denied', 'pill-consent-denied', `✗${n.denied}`],
+      ['ncm', 'pill-consent-unset', `ncm ${n.ncm}`], ['other', 'pill-consent-unset', `other ${n.other}`]].filter(([k]) => n[k]);
+    // "vendors" leads whichever pill comes first, so a fully denied card still reads as consent.
+    parts.forEach(([, cls, label], i) => out.push(`<span class="pill ${cls}" title="${escapeHtml(tip)}">${i ? '' : 'vendors '}${label}</span>`));
     return out.join('');
   }
   const consent = r.consent;
@@ -559,8 +594,8 @@ function paramRows(obj) {
   return keys.map(k => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(obj[k])}</td></tr>`).join('');
 }
 
-function kvTable(rows) {
-  return `<table class="det-table">${
+function kvTable(rows, cls = '') {
+  return `<table class="det-table${cls ? ' ' + cls : ''}">${
     rows.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join('')}</table>`;
 }
 
@@ -1100,6 +1135,48 @@ function detailHtml(r) {
     }
     if (r._transports && r._transports.length > 1) {
       extras += section(`transports (${r._transports.length})`, kvTable([['mirrors', r._transports.join(' · ')]]));
+    }
+  } else if (r.provider === 'jentis') {
+    const KIND = { consent: 'consent document', plugin: 'raised by the JENTIS client (no _jts.push)', event: 'custom event (_jts.push track: event)', command: 'data layer command (_jts.push)' };
+    meta = [
+      ['event', r.event],
+      ['kind', KIND[r.eventType]],
+      ['pushed commands (jtspushedcommands)', r.pushedCommands ? r.pushedCommands.join(' → ') : null],
+      ['pluginid', r.pluginId],
+      ['event group', r.eventGroup], ['event value', r.eventValue],
+      ['account', r.account],
+      ['document', `${r.documentType}${r.action ? ' / ' + r.action : ''}${r.docId ? ' · _id ' + r.docId : ''}`],
+      ['request type', r.requestType],
+      ['host', r.host], ['method', r.method],
+      ['page url', r.pageUrl],
+      ['request url', r.effectiveUrl],
+    ].filter(([, v]) => v != null && v !== '');
+
+    if (r.consent) {
+      const rows = Object.entries(r.consent.vendors).map(([v, s]) => [v, r.consentModes && r.consentModes[v] != null ? `${s}  ·  consent mode ${r.consentModes[v]}` : s]);
+      extras += section(`Consent per vendor (${r.consent.source})`, kvTable(rows));
+    }
+    if (Array.isArray(r.products) && r.products.length) {
+      // Head fields up front, every other non-empty column after — nothing is dropped.
+      const HEAD = ['id', 'price', 'quantity', 'brand', 'variant', 'type'];
+      const rows = r.products.map((p, i) => {
+        const head = [p.id ? `#${p.id}` : null, p.price || null, p.quantity ? `×${p.quantity}` : null,
+          p.brand || null, p.variant || null, p.type || null].filter(Boolean);
+        const rest = Object.entries(p).filter(([k]) => !HEAD.includes(k) && k !== 'name').map(([k, v]) => `${k}: ${v}`);
+        return [`${i + 1}. ${p.name || p.id || '?'}`, [...head, ...rest].join('  ·  ')];
+      });
+      extras += section(`products (${r.products.length}) — from the product_* columns`, kvTable(rows, 'det-items'));
+    }
+    if (r.properties) {
+      extras += section('fields sent by the container (property.*)', kvTable(Object.entries(r.properties).sort(([a], [b]) => a.localeCompare(b))));
+    }
+    if (r.flags && r.flags.ecommerce && !r.products && !r.properties) {
+      extras += section('e-commerce',
+        '<div class="det-note">Only the command arrived. JENTIS sends just the variables configured in the site\'s container — ' +
+        'product ids, prices or the order id show up here only if the container maps them.</div>');
+    }
+    if (r._transports && r._transports.length > 1) {
+      extras += section(`sent ${r._transports.length}×`, kvTable([['copies', r._transports.join(' · ')]]));
     }
   } else if (r.provider === 'openai') {
     const KIND = { 'oai::diagnostic': 'SDK diagnostic (not a marketing event)', 'openai::sdk_init': 'SDK lifecycle (not a marketing event)' };
